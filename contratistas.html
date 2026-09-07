@@ -102,7 +102,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL='https://tuixphfmpmmtsvhtbksk.supabase.co';
-const SUPABASE_KEY='__CLAVE_ANON_PROYECTO_CONTRATISTAS__';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR1aXhwaGZtcG1tdHN2aHRia3NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4MDI5ODgsImV4cCI6MjEwNDM3ODk4OH0.rqS9iOeokherFAQoF9jJGns_1alLS5MrJM0z1nfxyVU';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 // ---- Roles y claves (control de interfaz) ----
@@ -118,6 +118,7 @@ const VISTAS=[
   {id:'proyectos', icon:'🗂️', label:'Proyectos', grupo:'Administración LPS', roles:['admin_hseq','gestor'], sub:true},
   {id:'personal', icon:'👥', label:'Personal', grupo:'Operación', roles:['admin_hseq','gestor','contratista']},
   {id:'reporte', icon:'📅', label:'Reporte diario', grupo:'Operación', roles:['admin_hseq','contratista']},
+  {id:'indicadores', icon:'📈', label:'Indicadores HHT', grupo:'Operación', roles:['admin_hseq','gestor']},
   {id:'documentos', icon:'📄', label:'Documentos', grupo:'Operación', roles:['admin_hseq','gestor','contratista']},
   {id:'insp_vehiculos', icon:'🚗', label:'Vehículos', grupo:'Inspecciones', roles:['admin_hseq','contratista']},
   {id:'insp_epp', icon:'🦺', label:'EPP', grupo:'Inspecciones', roles:['admin_hseq','contratista']},
@@ -175,7 +176,7 @@ function construirMenu(){
   document.getElementById('menu').innerHTML=html;
 }
 
-const TITULOS={tablero:['General','Tablero de control'],contratistas:['Administración LPS','Contratistas'],clientes:['Administración LPS','Clientes'],proyectos:['Administración LPS','Proyectos'],personal:['Operación','Control de personal'],reporte:['Operación','Reporte diario de personal'],documentos:['Operación','Documentos y verificación'],insp_vehiculos:['Inspecciones','Inspección de vehículos'],insp_epp:['Inspecciones','Inspección de EPP']};
+const TITULOS={tablero:['General','Tablero de control'],contratistas:['Administración LPS','Contratistas'],clientes:['Administración LPS','Clientes'],proyectos:['Administración LPS','Proyectos'],personal:['Operación','Control de personal'],reporte:['Operación','Reporte diario de personal'],indicadores:['Operación','Indicadores HHT'],documentos:['Operación','Documentos y verificación'],insp_vehiculos:['Inspecciones','Inspección de vehículos'],insp_epp:['Inspecciones','Inspección de EPP']};
 function irA(id){
   document.querySelectorAll('.side a').forEach(a=>a.classList.remove('active'));
   const nav=document.getElementById('nav-'+id); if(nav)nav.classList.add('active');
@@ -520,26 +521,87 @@ async function guardarTrabajador(ced){
 // ===================== REPORTE DIARIO =====================
 RENDER.reporte=async function(){
   const c=document.getElementById('content');
-  c.innerHTML='<div class="sec-title">Reporte diario de personal</div><div class="sec-sub">Marca el personal activo en el proyecto para la fecha</div>'+
+  c.innerHTML='<div class="sec-title">Reporte diario de personal</div><div class="sec-sub">Marca el personal activo en el proyecto para la fecha. Cada persona presente suma 8 HHT (editable).</div>'+
     '<div class="card" style="margin-bottom:14px;"><div class="grid3"><div><label>Fecha</label><input type="date" id="r_fecha" value="'+hoyISO()+'"></div><div><label>Proyecto</label><select id="r_proy"></select></div><div><label>Frente / turno</label><input id="r_frente" placeholder="Frente · turno"></div></div><div style="margin-top:12px;"><button class="btn btn-p" onclick="guardarReporte()">💾 Reportar seleccionados</button></div></div>'+
-    '<div class="card" style="padding:6px 16px 14px;"><div style="font-size:12px;font-weight:600;padding:8px 0;">Seleccione el personal presente</div><table><thead><tr><th style="width:40px;"></th><th>Cédula</th><th>Nombre</th><th>Contratista</th></tr></thead><tbody id="repBody"></tbody></table></div>'+
-    '<div class="card" style="margin-top:14px;padding:6px 16px 14px;"><div style="font-size:12px;font-weight:600;padding:8px 0;">Reportes de hoy</div><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Proyecto</th><th>Frente</th></tr></thead><tbody id="repHoy"></tbody></table></div>';
+    '<div class="card" style="padding:6px 16px 14px;"><div style="font-size:12px;font-weight:600;padding:8px 0;">Seleccione el personal presente</div><table><thead><tr><th style="width:40px;"></th><th>Cédula</th><th>Nombre</th><th>Contratista</th><th style="width:90px;">HHT</th></tr></thead><tbody id="repBody"></tbody></table></div>'+
+    '<div class="card" style="margin-top:14px;padding:6px 16px 14px;"><div style="font-size:12px;font-weight:600;padding:8px 0;">Reportes de hoy · <span id="hhtHoy" style="color:var(--blue-d);"></span></div><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Proyecto</th><th>Frente</th><th>HHT</th></tr></thead><tbody id="repHoy"></tbody></table></div>';
   const [tr,pr]=await Promise.all([sb.from('gc_trabajadores').select('*').eq('activo',true),sb.from('gc_proyectos').select('*')]);
   RENDER.reporte._trab=tr.data||[];
   document.getElementById('r_proy').innerHTML='<option value="">—</option>'+(pr.data||[]).map(p=>'<option value="'+p.id+'">'+esc(p.nombre)+'</option>').join('');
-  document.getElementById('repBody').innerHTML=RENDER.reporte._trab.map(t=>'<tr><td><input type="checkbox" style="width:auto;" value="'+t.cedula+'" class="repchk"></td><td>'+esc(t.cedula)+'</td><td>'+esc((t.nombres||'')+' '+(t.apellidos||''))+'</td><td>'+esc(t.contratista_nit||'—')+'</td></tr>').join('')||'<tr><td colspan="4" style="text-align:center;color:var(--slate);padding:16px;">Sin personal activo</td></tr>';
+  document.getElementById('repBody').innerHTML=RENDER.reporte._trab.map(t=>'<tr><td><input type="checkbox" style="width:auto;" value="'+t.cedula+'" class="repchk" data-nit="'+esc(t.contratista_nit||'')+'"></td><td>'+esc(t.cedula)+'</td><td>'+esc((t.nombres||'')+' '+(t.apellidos||''))+'</td><td>'+esc(t.contratista_nit||'—')+'</td><td><input type="number" min="0" step="0.5" value="8" class="rephht" data-ced="'+esc(t.cedula)+'" style="width:70px;"></td></tr>').join('')||'<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:16px;">Sin personal activo</td></tr>';
   cargarReportesHoy();
 };
 async function cargarReportesHoy(){
   const {data}=await sb.from('gc_reporte_diario').select('*, gc_trabajadores(nombres,apellidos), gc_proyectos(nombre)').eq('fecha',hoyISO());
-  document.getElementById('repHoy').innerHTML=(data&&data.length)?data.map(r=>'<tr><td>'+esc(r.cedula)+'</td><td>'+esc((r.gc_trabajadores?.nombres||'')+' '+(r.gc_trabajadores?.apellidos||''))+'</td><td>'+esc(r.gc_proyectos?.nombre||'—')+'</td><td>'+esc(r.frente||'—')+'</td></tr>').join(''):'<tr><td colspan="4" style="text-align:center;color:var(--slate);padding:16px;">Sin reportes hoy</td></tr>';
+  const rows=data||[];
+  const totalHHT=rows.reduce((s,r)=>s+(Number(r.hht)||0),0);
+  document.getElementById('hhtHoy').textContent='Total HHT hoy: '+totalHHT+' h ('+rows.length+' persona(s))';
+  document.getElementById('repHoy').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.cedula)+'</td><td>'+esc((r.gc_trabajadores?.nombres||'')+' '+(r.gc_trabajadores?.apellidos||''))+'</td><td>'+esc(r.gc_proyectos?.nombre||'—')+'</td><td>'+esc(r.frente_trabajo||r.frente||'—')+'</td><td>'+(Number(r.hht)||0)+' h</td></tr>').join(''):'<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:16px;">Sin reportes hoy</td></tr>';
 }
 async function guardarReporte(){
   const fecha=document.getElementById('r_fecha').value, proy=document.getElementById('r_proy').value||null, frente=document.getElementById('r_frente').value.trim();
-  const ceds=[...document.querySelectorAll('.repchk:checked')].map(c=>c.value);
-  if(!ceds.length){alert('Seleccione al menos una persona');return;}
-  const rows=ceds.map(cedula=>({fecha,cedula,proyecto_id:proy,frente}));
-  try{ await sb.from('gc_reporte_diario').insert(rows); alert('✅ '+ceds.length+' persona(s) reportada(s)'); cargarReportesHoy(); document.querySelectorAll('.repchk:checked').forEach(c=>c.checked=false);}catch(e){alert('Error: '+e.message);}
+  const checks=[...document.querySelectorAll('.repchk:checked')];
+  if(!checks.length){alert('Seleccione al menos una persona');return;}
+  const hhtByCed={}; document.querySelectorAll('.rephht').forEach(i=>{ hhtByCed[i.dataset.ced]=Number(i.value)||0; });
+  const rows=checks.map(c=>({fecha,cedula:c.value,contratista_nit:c.dataset.nit||null,proyecto_id:proy,frente_trabajo:frente,hht:hhtByCed[c.value]!=null?hhtByCed[c.value]:8}));
+  try{ await sb.from('gc_reporte_diario').upsert(rows,{onConflict:'fecha,cedula,proyecto_id'}); alert('✅ '+checks.length+' persona(s) reportada(s)'); cargarReportesHoy(); document.querySelectorAll('.repchk:checked').forEach(c=>c.checked=false);}catch(e){alert('Error: '+e.message);}
+}
+
+
+// ===================== INDICADORES HHT =====================
+RENDER.indicadores=async function(){
+  const c=document.getElementById('content');
+  c.innerHTML='<div class="sec-title">Indicadores HHT</div><div class="sec-sub">Horas Hombre Trabajadas · segmentación por proyecto, contratista y periodo</div>'+
+    '<div class="card" style="margin-bottom:14px;"><div class="grid3">'+
+      '<div><label>Desde</label><input type="date" id="i_fd" onchange="pintarIndicadores()"></div>'+
+      '<div><label>Hasta</label><input type="date" id="i_fh" onchange="pintarIndicadores()"></div>'+
+      '<div><label>Periodo del gráfico</label><select id="i_periodo" onchange="pintarIndicadores()"><option value="dia">Día</option><option value="mes" selected>Mes</option></select></div>'+
+    '</div></div>'+
+    '<div id="i_kpis" class="grid3" style="margin-bottom:14px;"></div>'+
+    '<div class="card"><div style="font-size:12px;font-weight:600;padding:6px 0;">HHT por proyecto</div><div id="i_proy"></div></div>'+
+    '<div class="card"><div style="font-size:12px;font-weight:600;padding:6px 0;">HHT por contratista</div><div id="i_contr"></div></div>'+
+    '<div class="card"><div style="font-size:12px;font-weight:600;padding:6px 0;">HHT por periodo</div><div id="i_periodo_chart"></div></div>';
+  const [rep,proy,contr]=await Promise.all([
+    sb.from('gc_reporte_diario').select('*').limit(20000),
+    sb.from('gc_proyectos').select('id,nombre'),
+    sb.from('gc_contratistas').select('nit,razon_social')
+  ]);
+  RENDER.indicadores._rep=rep.data||[];
+  RENDER.indicadores._proy={}; (proy.data||[]).forEach(p=>RENDER.indicadores._proy[p.id]=p.nombre);
+  RENDER.indicadores._contr={}; (contr.data||[]).forEach(x=>RENDER.indicadores._contr[x.nit]=x.razon_social);
+  pintarIndicadores();
+};
+function barrasHHT(obj, mapNombre){
+  const rows=Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+  if(!rows.length) return '<div style="font-size:12px;color:var(--slate);">Sin datos</div>';
+  const max=Math.max(1,...rows.map(x=>x[1]));
+  return '<div style="display:flex;flex-direction:column;gap:6px;">'+rows.map(([k,v])=>{
+    const nombre=mapNombre?(mapNombre[k]||k||'—'):k;
+    return '<div style="display:flex;align-items:center;gap:8px;font-size:11px;"><span style="width:150px;text-align:right;color:var(--slate);">'+esc(nombre)+'</span><div style="height:16px;background:var(--blue);border-radius:3px;width:'+(v/max*100)+'%;min-width:2px;"></div><span style="font-weight:600;">'+v+' h</span></div>';
+  }).join('')+'</div>';
+}
+function pintarIndicadores(){
+  const rep=RENDER.indicadores._rep||[];
+  const fd=document.getElementById('i_fd').value, fh=document.getElementById('i_fh').value;
+  const periodo=document.getElementById('i_periodo').value;
+  let rows=rep.filter(r=>{ const f=(r.fecha||'').slice(0,10); if(fd&&f<fd)return false; if(fh&&f>fh)return false; return true; });
+  const totalHHT=rows.reduce((s,r)=>s+(Number(r.hht)||0),0);
+  const personas=new Set(rows.map(r=>r.cedula)).size;
+  const dias=new Set(rows.map(r=>(r.fecha||'').slice(0,10))).size;
+  document.getElementById('i_kpis').innerHTML=
+    '<div class="kpi"><div class="t" style="font-size:10px;color:var(--slate);text-transform:uppercase;">HHT totales</div><div class="n" style="font-size:24px;font-weight:700;">'+totalHHT+' h</div></div>'+
+    '<div class="kpi"><div class="t" style="font-size:10px;color:var(--slate);text-transform:uppercase;">Personas distintas</div><div class="n" style="font-size:24px;font-weight:700;">'+personas+'</div></div>'+
+    '<div class="kpi"><div class="t" style="font-size:10px;color:var(--slate);text-transform:uppercase;">Días con reporte</div><div class="n" style="font-size:24px;font-weight:700;">'+dias+'</div></div>';
+  // Por proyecto
+  const porProy={}; rows.forEach(r=>{ const k=r.proyecto_id||'(sin proyecto)'; porProy[k]=(porProy[k]||0)+(Number(r.hht)||0); });
+  document.getElementById('i_proy').innerHTML=barrasHHT(porProy,RENDER.indicadores._proy);
+  // Por contratista
+  const porContr={}; rows.forEach(r=>{ const k=r.contratista_nit||'(sin contratista)'; porContr[k]=(porContr[k]||0)+(Number(r.hht)||0); });
+  document.getElementById('i_contr').innerHTML=barrasHHT(porContr,RENDER.indicadores._contr);
+  // Por periodo (día o mes)
+  const porPer={}; rows.forEach(r=>{ const f=(r.fecha||'').slice(0,10); const k=periodo==='dia'?f:f.slice(0,7); porPer[k]=(porPer[k]||0)+(Number(r.hht)||0); });
+  const ordenado={}; Object.keys(porPer).sort().forEach(k=>ordenado[k]=porPer[k]);
+  document.getElementById('i_periodo_chart').innerHTML=barrasHHT(ordenado,null);
 }
 
 // ===================== DOCUMENTOS =====================
