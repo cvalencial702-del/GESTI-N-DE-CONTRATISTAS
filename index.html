@@ -122,6 +122,8 @@ const VISTAS=[
   {id:'documentos', icon:'📄', label:'Documentos', grupo:'Operación', roles:['admin_hseq','gestor','contratista']},
   {id:'insp_vehiculos', icon:'🚗', label:'Vehículos', grupo:'Inspecciones', roles:['admin_hseq','contratista']},
   {id:'insp_epp', icon:'🦺', label:'EPP', grupo:'Inspecciones', roles:['admin_hseq','contratista']},
+  {id:'equipos_alturas', icon:'🧗', label:'Equipos de alturas', grupo:'Inspecciones', roles:['admin_hseq','contratista']},
+  {id:'permiso_alturas', icon:'📋', label:'Permiso de alturas', grupo:'Inspecciones', roles:['admin_hseq','contratista']},
 ];
 
 function ajustarPlaceholderClave(){
@@ -176,7 +178,7 @@ function construirMenu(){
   document.getElementById('menu').innerHTML=html;
 }
 
-const TITULOS={tablero:['General','Tablero de control'],contratistas:['Administración LPS','Contratistas'],clientes:['Administración LPS','Clientes'],proyectos:['Administración LPS','Proyectos'],personal:['Operación','Control de personal'],reporte:['Operación','Reporte diario de personal'],indicadores:['Operación','Indicadores HHT'],documentos:['Operación','Documentos y verificación'],insp_vehiculos:['Inspecciones','Inspección de vehículos'],insp_epp:['Inspecciones','Inspección de EPP']};
+const TITULOS={tablero:['General','Tablero de control'],contratistas:['Administración LPS','Contratistas'],clientes:['Administración LPS','Clientes'],proyectos:['Administración LPS','Proyectos'],personal:['Operación','Control de personal'],reporte:['Operación','Reporte diario de personal'],indicadores:['Operación','Indicadores HHT'],documentos:['Operación','Documentos y verificación'],insp_vehiculos:['Inspecciones','Inspección de vehículos'],insp_epp:['Inspecciones','Inspección de EPP'],equipos_alturas:['Inspecciones','Equipos de alturas'],permiso_alturas:['Inspecciones','Permiso de trabajo en alturas']};
 function irA(id){
   document.querySelectorAll('.side a').forEach(a=>a.classList.remove('active'));
   const nav=document.getElementById('nav-'+id); if(nav)nav.classList.add('active');
@@ -523,12 +525,22 @@ async function guardarProyecto(id){
 RENDER.insp_vehiculos=function(){
   const c=document.getElementById('content');
   c.innerHTML='<div class="sec-title">Inspección de vehículos</div><div class="sec-sub">Preoperacional de vehículos y motos</div>'+
-    '<div class="card" style="text-align:center;padding:30px;"><div style="font-size:40px;">🚗</div><div style="font-size:13px;color:var(--slate);margin:10px 0 16px;">Abre el módulo de verificación de vehículos para registrar o consultar inspecciones.</div><a class="btn btn-p" href="verificacion-vehiculos.html" style="text-decoration:none;">Abrir verificación de vehículos →</a></div>';
+    '<div class="card" style="text-align:center;padding:30px;"><div style="font-size:40px;">🚗</div><div style="font-size:13px;color:var(--slate);margin:10px 0 16px;">Abre el módulo de verificación de vehículos para registrar o consultar inspecciones.</div><a class="btn btn-p" href="vehiculos.html" style="text-decoration:none;">Abrir verificación de vehículos →</a></div>';
 };
 RENDER.insp_epp=function(){
   const c=document.getElementById('content');
   c.innerHTML='<div class="sec-title">Inspección de EPP</div><div class="sec-sub">Elementos de protección personal</div>'+
     '<div class="card" style="text-align:center;padding:30px;"><div style="font-size:40px;">🦺</div><div style="font-size:13px;color:var(--slate);margin:10px 0;">Módulo de inspección de EPP — en preparación.</div></div>';
+};
+RENDER.equipos_alturas=function(){
+  const c=document.getElementById('content');
+  c.innerHTML='<div class="sec-title">Equipos de alturas</div><div class="sec-sub">Fichas e inspección de equipos de protección contra caídas</div>'+
+    '<div class="card" style="text-align:center;padding:30px;"><div style="font-size:40px;">🧗</div><div style="font-size:13px;color:var(--slate);margin:10px 0 16px;">Abre el módulo de equipos de alturas para registrar equipos e inspecciones.</div><a class="btn btn-p" href="equipos-alturas.html" style="text-decoration:none;">Abrir equipos de alturas →</a></div>';
+};
+RENDER.permiso_alturas=function(){
+  const c=document.getElementById('content');
+  c.innerHTML='<div class="sec-title">Permiso de trabajo en alturas</div><div class="sec-sub">Res. 4272/2021</div>'+
+    '<div class="card" style="text-align:center;padding:30px;"><div style="font-size:40px;">📋</div><div style="font-size:13px;color:var(--slate);margin:10px 0 16px;">Abre el módulo de permisos de trabajo en alturas.</div><a class="btn btn-p" href="permiso-alturas.html" style="text-decoration:none;">Abrir permiso de alturas →</a></div>';
 };
 
 // ===================== PERSONAL =====================
