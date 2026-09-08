@@ -357,33 +357,64 @@ async function formPersonaOT(ced){
   let d={};
   if(ced){ const {data}=await sb.from('gc_trabajadores').select('*').eq('cedula',ced).limit(1); d=(data&&data[0])||{}; }
   const ch=d.chequeo||{};
-  const condHtml=CONDICIONES.map(co=>{
-    const cur=ch[co.k]||{}; const checked=cur.aplica?'checked':'';
-    const fechaBox=co.fecha?'<div id="cond_fecha_'+co.k+'" style="display:'+(cur.aplica?'flex':'none')+';gap:6px;margin:4px 0 8px 24px;align-items:center;"><span style="font-size:10px;color:var(--slate);">Vence:</span><input type="date" id="cond_venc_'+co.k+'" value="'+esc(cur.vence||'')+'" style="max-width:160px;"></div>':'';
-    return '<div><label style="display:flex;align-items:center;gap:7px;font-weight:400;text-transform:none;letter-spacing:0;font-size:12px;"><input type="checkbox" id="cond_'+co.k+'" '+checked+' style="width:auto;" onchange="'+(co.fecha?'document.getElementById(\'cond_fecha_'+co.k+'\').style.display=this.checked?\'flex\':\'none\'':'')+'"> '+co.label+'</label>'+fechaBox+'</div>';
-  }).join('');
-  abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(ced?'Editar':'Agregar')+' persona</div><div class="sec-sub">Datos personales y de seguridad social</div>'+
-    '<div class="grid3"><div><label>Número de cédula</label><input id="pt_ced" value="'+esc(d.cedula||'')+'" '+(ced?'readonly':'')+'></div><div><label>Nombres y apellidos</label><input id="pt_nom" value="'+esc(((d.nombres||'')+' '+(d.apellidos||'')).trim())+'"></div><div><label>Género</label><select id="pt_gen"><option value="">—</option><option>Masculino</option><option>Femenino</option><option>Otro</option></select></div>'+
-    '<div><label>Fecha de nacimiento</label><input type="date" id="pt_fnac" value="'+esc(d.fecha_nacimiento||'')+'"></div><div><label>Tipo de sangre / RH</label><input id="pt_rh" value="'+esc(d.rh||'')+'" placeholder="O+"></div><div><label>Correo electrónico</label><input id="pt_cor" value="'+esc(d.correo||'')+'"></div>'+
-    '<div><label>Teléfono celular</label><input id="pt_cel" value="'+esc(d.celular||'')+'"></div><div><label>Cargo</label><input id="pt_car" value="'+esc(d.cargo||'')+'"></div><div><label>EPS</label><input id="pt_eps" value="'+esc(d.eps||'')+'"></div>'+
-    '<div><label>ARL</label><input id="pt_arl" value="'+esc(d.arl||'')+'"></div><div><label>AFP</label><input id="pt_afp" value="'+esc(d.afp||'')+'"></div><div><label>Alergias / condiciones médicas</label><input id="pt_alg" value="'+esc(d.alergias||'')+'"></div>'+
-    '<div style="grid-column:1/3;"><label>Contacto de emergencia: nombre y parentesco</label><input id="pt_en" value="'+esc(d.emerg_nombre||'')+'"></div><div><label>Contacto emergencia: número</label><input id="pt_et" value="'+esc(d.emerg_telefono||'')+'"></div></div>'+
-    '<div class="card" style="margin-top:14px;border:1.5px solid #F5C0C0;"><div style="font-size:12px;font-weight:700;color:#991B1B;margin-bottom:8px;">Condición vigente por persona</div><div style="font-size:10px;color:var(--slate);margin-bottom:8px;">Marque lo que aplica; al marcar, indique la fecha de vencimiento cuando corresponda.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;">'+condHtml+'</div></div>'+
-    '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarPersonaOT('+(ced?"'"+ced+"'":'null')+')">💾 Agregar persona</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
+  const esContr=(sesion.rol==='contratista'); // el contratista tiene edición limitada
+  const bloq=esContr?'disabled':'';
+  // Lista de contratistas para el desplegable
+  const {data:contrLista}=await sb.from('gc_contratistas').select('nit,razon_social').limit(2000);
+  const optsContr='<option value="">—</option>'+(contrLista||[]).map(c=>'<option value="'+esc(c.nit)+'" '+((d.contratista_nit||contratistaActual)===c.nit?'selected':'')+'>'+esc(c.razon_social||c.nit)+'</option>').join('');
+  const cats=['A1','A2','B1','B2','B3','C1','C2','C3'];
+  const conduceOn=(ch.conduccion&&ch.conduccion.aplica)||d.conduce;
+  const condBloque='<div id="condDetalle" style="display:'+(conduceOn?'block':'none')+';margin:6px 0 4px 24px;">'+
+    '<div class="grid3">'+
+    '<div><label>Categoría</label><select id="pt_liccat" '+bloq+'><option value="">—</option>'+cats.map(x=>'<option '+(d.lic_categoria===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'+
+    '<div><label>N° licencia</label><input id="pt_licnum" value="'+esc(d.lic_numero||'')+'" '+bloq+'></div>'+
+    '<div><label>Vigencia licencia</label><input type="date" id="pt_licvig" value="'+esc(d.lic_vigencia||'')+'" '+bloq+'></div>'+
+    '</div></div>';
+  abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(ced?'Editar':'Agregar')+' persona</div><div class="sec-sub">Datos personales y de seguridad social'+(esContr?' · (como contratista solo puede editar Estado y Conducción)':'')+'</div>'+
+    '<div class="grid3"><div><label>Número de cédula</label><input id="pt_ced" value="'+esc(d.cedula||'')+'" '+(ced?'readonly':(esContr?'':''))+' '+(esContr?'readonly':'')+'></div><div><label>Nombres y apellidos</label><input id="pt_nom" value="'+esc(((d.nombres||'')+' '+(d.apellidos||'')).trim())+'" '+bloq+'></div><div><label>Género</label><select id="pt_gen" '+bloq+'><option value="">—</option><option>Masculino</option><option>Femenino</option><option>Otro</option></select></div>'+
+    '<div><label>Fecha de nacimiento</label><input type="date" id="pt_fnac" value="'+esc(d.fecha_nacimiento||'')+'" '+bloq+'></div><div><label>Tipo de sangre / RH</label><input id="pt_rh" value="'+esc(d.rh||'')+'" placeholder="O+" '+bloq+'></div><div><label>Correo electrónico</label><input id="pt_cor" value="'+esc(d.correo||'')+'" '+bloq+'></div>'+
+    '<div><label>Teléfono celular</label><input id="pt_cel" value="'+esc(d.celular||'')+'" '+bloq+'></div><div><label>Cargo</label><input id="pt_car" value="'+esc(d.cargo||'')+'" '+bloq+'></div><div><label>EPS</label><input id="pt_eps" value="'+esc(d.eps||'')+'" '+bloq+'></div>'+
+    '<div><label>ARL</label><input id="pt_arl" value="'+esc(d.arl||'')+'" '+bloq+'></div><div><label>AFP</label><input id="pt_afp" value="'+esc(d.afp||'')+'" '+bloq+'></div><div><label>Alergias / condiciones médicas</label><input id="pt_alg" value="'+esc(d.alergias||'')+'" '+bloq+'></div>'+
+    '<div style="grid-column:1/3;"><label>Contacto de emergencia: nombre y parentesco</label><input id="pt_en" value="'+esc(d.emerg_nombre||'')+'" '+bloq+'></div><div><label>Contacto emergencia: número</label><input id="pt_et" value="'+esc(d.emerg_telefono||'')+'" '+bloq+'></div>'+
+    '<div><label>Contratista</label><select id="pt_con" '+bloq+'>'+optsContr+'</select></div>'+
+    '<div><label>Estado</label><select id="pt_est"><option value="true" '+(d.activo!==false?'selected':'')+'>Activo</option><option value="false" '+(d.activo===false?'selected':'')+'>Inactivo</option></select></div></div>'+
+    '<div class="card" style="margin-top:14px;border:1.5px solid #F5C0C0;"><div style="font-size:12px;font-weight:700;color:#991B1B;margin-bottom:8px;">Actividad de conducción</div>'+
+    '<label style="display:flex;align-items:center;gap:7px;font-weight:400;text-transform:none;letter-spacing:0;font-size:12px;"><input type="checkbox" id="pt_conduce" '+(conduceOn?'checked':'')+' style="width:auto;" onchange="document.getElementById(\'condDetalle\').style.display=this.checked?\'block\':\'none\'"> Realiza actividades de conducción</label>'+
+    condBloque+'</div>'+
+    '<div id="pt_err" style="color:var(--danger);font-size:11px;margin-top:8px;"></div>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarPersonaOT('+(ced?"'"+ced+"'":'null')+')">💾 Guardar</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
   if(ced){ if(d.genero)document.getElementById('pt_gen').value=d.genero; }
 }
 async function guardarPersonaOT(ced){
+  const err=document.getElementById('pt_err');
+  const esContr=(sesion.rol==='contratista');
+  const conduce=document.getElementById('pt_conduce').checked;
+  const licCat=document.getElementById('pt_liccat')?document.getElementById('pt_liccat').value:'';
+  const licNum=document.getElementById('pt_licnum')?document.getElementById('pt_licnum').value.trim():'';
+  const licVig=document.getElementById('pt_licvig')?document.getElementById('pt_licvig').value:'';
+  // Conducción: si aplica, los 3 campos son obligatorios
+  if(conduce && (!licCat||!licNum||!licVig)){ if(err){err.textContent='Si realiza conducción, indique categoría, N° de licencia y vigencia.';} else {alert('Si realiza conducción, indique categoría, N° de licencia y vigencia.');} return; }
+
+  // El CONTRATISTA solo puede editar estado y conducción (resto bloqueado)
+  if(esContr){
+    if(!ced){ alert('No puede crear personal nuevo desde el perfil de contratista.'); return; }
+    const upd={
+      activo:document.getElementById('pt_est').value==='true',
+      conduce:conduce,
+      lic_categoria:conduce?licCat:null, lic_numero:conduce?licNum:null, lic_vigencia:conduce?(licVig||null):null
+    };
+    try{ await sb.from('gc_trabajadores').update(upd).eq('cedula',ced); cerrarModal(); if(typeof cargarPersonalOT==='function')cargarPersonalOT(); if(RENDER.personal)RENDER.personal(); }catch(e){ if(err)err.textContent='Error: '+e.message; }
+    return;
+  }
+
+  // Admin/Gestor: guardado completo
   const nomComp=document.getElementById('pt_nom').value.trim();
   const partes=nomComp.split(' ');
-  const chequeo={};
-  CONDICIONES.forEach(co=>{
-    const chk=document.getElementById('cond_'+co.k).checked;
-    if(co.fecha){ const v=document.getElementById('cond_venc_'+co.k); chequeo[co.k]={aplica:chk,vence:chk&&v?(v.value||null):null}; }
-    else { chequeo[co.k]={aplica:chk}; }
-  });
+  const chequeo={conduccion:{aplica:conduce}};
   const row={
     cedula:document.getElementById('pt_ced').value.trim(),
-    contratista_nit:contratistaActual, orden_codigo:ordenActual, proyecto_id:proyectoActual,
+    contratista_nit:document.getElementById('pt_con').value||contratistaActual||null,
+    orden_codigo:ordenActual, proyecto_id:proyectoActual,
     nombres:partes[0]||'', apellidos:partes.slice(1).join(' '),
     genero:document.getElementById('pt_gen').value||null,
     fecha_nacimiento:document.getElementById('pt_fnac').value||null,
@@ -397,14 +428,15 @@ async function guardarPersonaOT(ced){
     alergias:document.getElementById('pt_alg').value.trim(),
     emerg_nombre:document.getElementById('pt_en').value.trim(),
     emerg_telefono:document.getElementById('pt_et').value.trim(),
-    conduce:chequeo.conduccion?chequeo.conduccion.aplica:false,
-    chequeo, activo:true
+    conduce:conduce,
+    lic_categoria:conduce?licCat:null, lic_numero:conduce?licNum:null, lic_vigencia:conduce?(licVig||null):null,
+    chequeo, activo:document.getElementById('pt_est').value==='true'
   };
-  if(!row.cedula||!nomComp){alert('Cédula y nombre son obligatorios');return;}
+  if(!row.cedula||!nomComp){ if(err)err.textContent='Cédula y nombre son obligatorios'; return; }
   try{
     if(ced){await sb.from('gc_trabajadores').update(row).eq('cedula',ced);}
     else{const{error}=await sb.from('gc_trabajadores').insert(row);if(error)throw error;}
-    cerrarModal(); cargarPersonalOT();
+    cerrarModal(); if(typeof cargarPersonalOT==='function')cargarPersonalOT(); if(RENDER.personal)RENDER.personal();
   }catch(e){alert('Error: '+e.message);}
 }
 
@@ -528,15 +560,25 @@ async function guardarTrabajador(ced){
 RENDER.reporte=async function(){
   const c=document.getElementById('content');
   c.innerHTML='<div class="sec-title">Reporte diario de personal</div><div class="sec-sub">Marca el personal activo en el proyecto para la fecha. Cada persona presente suma 8 HHT (editable).</div>'+
-    '<div class="card" style="margin-bottom:14px;"><div class="grid3"><div><label>Fecha</label><input type="date" id="r_fecha" value="'+hoyISO()+'"></div><div><label>Proyecto</label><select id="r_proy"></select></div><div><label>Frente / turno</label><input id="r_frente" placeholder="Frente · turno"></div></div><div style="margin-top:12px;"><button class="btn btn-p" onclick="guardarReporte()">💾 Reportar seleccionados</button></div></div>'+
+    '<div class="card" style="margin-bottom:14px;"><div class="grid3"><div><label>Fecha</label><input type="date" id="r_fecha" value="'+hoyISO()+'"></div><div><label>Proyecto</label><select id="r_proy" onchange="pintarPersonalReporte()"></select></div><div><label>Frente / turno</label><input id="r_frente" placeholder="Frente · turno"></div></div><div style="margin-top:12px;"><button class="btn btn-p" onclick="guardarReporte()">💾 Reportar seleccionados</button></div></div>'+
     '<div class="card" style="padding:6px 16px 14px;"><div style="font-size:12px;font-weight:600;padding:8px 0;">Seleccione el personal presente</div><table><thead><tr><th style="width:40px;"></th><th>Cédula</th><th>Nombre</th><th>Contratista</th><th style="width:90px;">HHT</th></tr></thead><tbody id="repBody"></tbody></table></div>'+
     '<div class="card" style="margin-top:14px;padding:6px 16px 14px;"><div style="font-size:12px;font-weight:600;padding:8px 0;">Reportes de hoy · <span id="hhtHoy" style="color:var(--blue-d);"></span></div><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Proyecto</th><th>Frente</th><th>HHT</th></tr></thead><tbody id="repHoy"></tbody></table></div>';
   const [tr,pr]=await Promise.all([sb.from('gc_trabajadores').select('*').eq('activo',true),sb.from('gc_proyectos').select('*')]);
   RENDER.reporte._trab=tr.data||[];
-  document.getElementById('r_proy').innerHTML='<option value="">—</option>'+(pr.data||[]).map(p=>'<option value="'+p.id+'">'+esc(p.nombre)+'</option>').join('');
-  document.getElementById('repBody').innerHTML=RENDER.reporte._trab.map(t=>'<tr><td><input type="checkbox" style="width:auto;" value="'+t.cedula+'" class="repchk" data-nit="'+esc(t.contratista_nit||'')+'"></td><td>'+esc(t.cedula)+'</td><td>'+esc((t.nombres||'')+' '+(t.apellidos||''))+'</td><td>'+esc(t.contratista_nit||'—')+'</td><td><input type="number" min="0" step="0.5" value="8" class="rephht" data-ced="'+esc(t.cedula)+'" style="width:70px;"></td></tr>').join('')||'<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:16px;">Sin personal activo</td></tr>';
-  cargarReportesHoy();
+  document.getElementById('r_proy').innerHTML='<option value="">— Seleccione un proyecto —</option>'+(pr.data||[]).map(p=>'<option value="'+p.id+'">'+esc(p.nombre)+'</option>').join('');
+  pintarPersonalReporte();
 };
+function pintarPersonalReporte(){
+  const proySel=document.getElementById('r_proy')?document.getElementById('r_proy').value:'';
+  let lista=(RENDER.reporte._trab||[]).filter(t=>t.activo!==false); // solo activos
+  if(!proySel){
+    document.getElementById('repBody').innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:16px;">Seleccione un proyecto para ver su personal asociado</td></tr>';
+    return;
+  }
+  // Solo el personal asociado a ESE proyecto
+  lista=lista.filter(t=>t.proyecto_id===proySel);
+  document.getElementById('repBody').innerHTML=lista.length?lista.map(t=>'<tr><td><input type="checkbox" style="width:auto;" value="'+t.cedula+'" class="repchk" data-nit="'+esc(t.contratista_nit||'')+'"></td><td>'+esc(t.cedula)+'</td><td>'+esc((t.nombres||'')+' '+(t.apellidos||''))+'</td><td>'+esc(t.contratista_nit||'—')+'</td><td><input type="number" min="0" step="0.5" value="8" class="rephht" data-ced="'+esc(t.cedula)+'" style="width:70px;"></td></tr>').join(''):'<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:16px;">Sin personal asociado a este proyecto</td></tr>';
+}
 async function cargarReportesHoy(){
   const {data}=await sb.from('gc_reporte_diario').select('*, gc_trabajadores(nombres,apellidos), gc_proyectos(nombre)').eq('fecha',hoyISO());
   const rows=data||[];
