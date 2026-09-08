@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestión de Contratistas · LPS</title>
+<style>
+  :root{--navy:#0A2540;--blue:#1598FF;--blue-d:#0C6BC4;--green:#16A34A;--amber:#D97706;--danger:#DC2626;--slate:#5B6B7C;--line:#E2EBF3;--bg:#EEF1F6;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--navy);}
+  .hidden{display:none!important;}
+  input,select,textarea{width:100%;border:0.5px solid #D0DBE7;border-radius:7px;padding:8px 10px;font-size:12.5px;color:var(--navy);font-family:inherit;background:#fff;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
+  label{font-size:10px;color:var(--slate);font-weight:700;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;}
+  .btn{border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .btn-p{background:var(--blue);color:#fff;} .btn-navy{background:var(--navy);color:#fff;}
+  .btn-g{background:#EEF3F8;color:#42505E;border:0.5px solid #D0DBE7;}
+  .btn-sm{border:none;background:#EAF5FF;color:var(--blue-d);border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer;}
+  .pill{padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:600;display:inline-block;}
+  .pill-ok{background:#DCFCE7;color:#166534;} .pill-warn{background:#FEF3C7;color:#92600A;} .pill-bad{background:#FEE2E2;color:#991B1B;} .pill-gray{background:#EEF3F8;color:#5B6B7C;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{text-align:left;padding:9px 8px;font-weight:600;color:var(--slate);border-bottom:1px solid #EEF3F8;font-size:10.5px;text-transform:uppercase;}
+  td{padding:8px;border-bottom:1px solid #F4F7FB;}
+  .card{background:#fff;border:0.5px solid var(--line);border-radius:12px;padding:16px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px 14px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px 14px;}
+
+  /* LOGIN */
+  #login{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:100;}
+  #login .box{background:#fff;border-radius:16px;padding:32px;width:360px;max-width:92vw;}
+  #login .logo{width:52px;height:52px;background:var(--blue);border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#fff;margin:0 auto 16px;}
+
+  /* APP LAYOUT */
+  #app{display:grid;grid-template-columns:210px 1fr;min-height:100vh;}
+  .side{background:var(--navy);color:#fff;padding:0;}
+  .side .brand{display:flex;align-items:center;gap:9px;padding:16px;border-bottom:1px solid rgba(255,255,255,.12);}
+  .side .logo{width:34px;height:34px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}
+  .side nav{padding:10px 0;}
+  .side .grp{font-size:9.5px;color:#5A7CA0;text-transform:uppercase;letter-spacing:.5px;padding:10px 16px 5px;}
+  .side a{display:flex;align-items:center;gap:9px;padding:9px 16px;font-size:12.5px;color:#B8CFE6;text-decoration:none;cursor:pointer;border-left:3px solid transparent;}
+  .side a:hover{background:rgba(255,255,255,.06);color:#fff;}
+  .side a.active{background:rgba(21,152,255,.16);border-left-color:var(--blue);color:#fff;}
+  .main{display:flex;flex-direction:column;}
+  .topbar{background:var(--blue);color:#fff;padding:13px 20px;display:flex;align-items:center;justify-content:between;}
+  .topbar .tt{flex:1;}
+  .topbar .sub{font-size:10.5px;color:#D6ECFF;} .topbar .h{font-size:16px;font-weight:600;}
+  .topbar .user{display:flex;align-items:center;gap:8px;font-size:12px;}
+  .topbar .av{width:28px;height:28px;border-radius:50%;background:#fff;color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;}
+  .content{padding:20px;flex:1;}
+  .view{display:none;} .view.active{display:block;}
+  .kpirow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+  .kpi{background:#fff;border:0.5px solid var(--line);border-radius:10px;padding:12px;}
+  .kpi .l{font-size:10px;color:var(--slate);text-transform:uppercase;} .kpi .v{font-size:22px;font-weight:700;}
+  .sec-title{font-size:15px;font-weight:600;margin-bottom:4px;}
+  .sec-sub{font-size:11px;color:var(--slate);margin-bottom:14px;}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+  .modal-bg{position:fixed;inset:0;background:rgba(10,37,64,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .modal{background:#fff;border-radius:14px;padding:20px;width:640px;max-width:96vw;max-height:90vh;overflow:auto;}
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="login">
+  <div class="box">
+    <div class="logo">LPS</div>
+    <div style="text-align:center;font-size:16px;font-weight:700;color:var(--navy);">Gestión de Contratistas</div>
+    <div style="text-align:center;font-size:11px;color:var(--slate);margin-bottom:20px;">Sistema HSEQ · Grupo LPS</div>
+    <label>Perfil</label>
+    <select id="loginRol" onchange="ajustarPlaceholderClave()">
+      <option value="admin_hseq">Administrador HSEQ</option>
+      <option value="gestor">Gestor de contrato</option>
+      <option value="contratista">Contratista</option>
+    </select>
+    <div style="height:10px;"></div>
+    <label>Clave de acceso</label>
+    <input type="password" id="loginClave" placeholder="Clave del perfil" onkeydown="if(event.key==='Enter')hacerLogin()">
+    <div style="height:16px;"></div>
+    <button class="btn btn-p" style="width:100%;" onclick="hacerLogin()">Ingresar</button>
+    <div id="loginError" style="color:var(--danger);font-size:11px;text-align:center;margin-top:10px;"></div>
+    <div style="font-size:10px;color:#94A3B8;text-align:center;margin-top:14px;">El perfil determina qué puede ver y hacer en la plataforma.</div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app" class="hidden">
+  <aside class="side">
+    <div class="brand"><div class="logo">LPS</div><div style="font-size:13px;font-weight:600;line-height:1.2;">Grupo LPS<br><span style="font-size:10px;color:#7FA8D4;">Contratistas</span></div></div>
+    <nav id="menu"></nav>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="tt"><div class="sub" id="barSub">Panel</div><div class="h" id="barTitle">Inicio</div></div>
+      <div class="user"><span id="barUser">—</span><div class="av" id="barAv">?</div><button class="btn-sm" style="background:rgba(255,255,255,.2);color:#fff;" onclick="logout()">Salir</button></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://gtmfbdjwiypzpdlmwolg.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0bWZiZGp3aXlwenBkbG13b2xnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4Mzk1NjUsImV4cCI6MjEwNDQxNTU2NX0.s_FZ7m2o1Fv54GawJ5XbNHQFmnGyfe93faWlw035W1I';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+// ---- Roles y claves (control de interfaz) ----
+const CLAVES={admin_hseq:'LPS-ADMIN',gestor:'LPS-GESTOR'};
+const ROL_NOMBRE={admin_hseq:'Administrador HSEQ',gestor:'Gestor de contrato',contratista:'Contratista'};
+let sesion=null;
+
+// Menú por rol: qué vistas ve cada perfil
+const VISTAS=[
+  {id:'tablero', icon:'📊', label:'Tablero', grupo:'General', roles:['admin_hseq','gestor','contratista']},
+  {id:'contratistas', icon:'🏢', label:'Contratistas', grupo:'Administración LPS', roles:['admin_hseq','gestor']},
+  {id:'clientes', icon:'🏛️', label:'Clientes', grupo:'Administración LPS', roles:['admin_hseq','gestor']},
+  {id:'proyectos', icon:'🗂️', label:'Proyectos', grupo:'Administración LPS', roles:['admin_hseq','gestor'], sub:true},
+  {id:'personal', icon:'👥', label:'Personal', grupo:'Operación', roles:['admin_hseq','gestor','contratista']},
+  {id:'reporte', icon:'📅', label:'Reporte diario', grupo:'Operación', roles:['admin_hseq','contratista']},
+  {id:'indicadores', icon:'📈', label:'Indicadores HHT', grupo:'Operación', roles:['admin_hseq','gestor']},
+  {id:'documentos', icon:'📄', label:'Documentos', grupo:'Operación', roles:['admin_hseq','gestor','contratista']},
+  {id:'insp_vehiculos', icon:'🚗', label:'Vehículos', grupo:'Inspecciones', roles:['admin_hseq','contratista']},
+  {id:'insp_epp', icon:'🦺', label:'EPP', grupo:'Inspecciones', roles:['admin_hseq','contratista']},
+];
+
+function ajustarPlaceholderClave(){
+  const rol=document.getElementById('loginRol').value;
+  const inp=document.getElementById('loginClave');
+  if(rol==='contratista'){ inp.placeholder='NIT sin dígito de verificación'; inp.type='text'; }
+  else { inp.placeholder='Clave del perfil'; inp.type='password'; }
+}
+async function hacerLogin(){
+  const rol=document.getElementById('loginRol').value;
+  const clave=document.getElementById('loginClave').value.trim();
+  document.getElementById('loginError').textContent='';
+  if(rol==='contratista'){
+    // El contratista ingresa con su NIT sin dígito de verificación (esa es su clave)
+    if(!clave){ document.getElementById('loginError').textContent='Ingrese su NIT sin dígito de verificación.'; return; }
+    const nitBuscar=clave.replace(/[^0-9]/g,''); // solo números
+    try{
+      const {data}=await sb.from('gc_contratistas').select('nit,nombre').limit(2000);
+      const lista=data||[];
+      // Coincidencia: el NIT guardado, sin dígito de verificación, igual a lo ingresado
+      const match=lista.find(c=>{
+        const nitBase=String(c.nit||'').replace(/[^0-9]/g,'');
+        // Comparar contra el NIT completo o contra el NIT sin el último dígito
+        return nitBase===nitBuscar || nitBase.slice(0,-1)===nitBuscar;
+      });
+      if(!match){ document.getElementById('loginError').textContent='NIT no encontrado. Verifique el número (sin dígito de verificación).'; return; }
+      sesion={rol,contratista_nit:match.nit,contratista_nombre:match.nombre};
+    }catch(e){ document.getElementById('loginError').textContent='Error validando el NIT: '+e.message; return; }
+  } else {
+    if(clave!==CLAVES[rol]){ document.getElementById('loginError').textContent='Clave incorrecta para el perfil seleccionado.'; return; }
+    sesion={rol};
+  }
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  const nombreMostrar=(rol==='contratista'&&sesion.contratista_nombre)?sesion.contratista_nombre:ROL_NOMBRE[rol];
+  document.getElementById('barUser').textContent=nombreMostrar;
+  document.getElementById('barAv').textContent=nombreMostrar.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  construirMenu();
+  irA('tablero');
+}
+function logout(){ sesion=null; location.reload(); }
+
+function construirMenu(){
+  const permitidas=VISTAS.filter(v=>v.roles.includes(sesion.rol));
+  const grupos={};
+  permitidas.forEach(v=>{(grupos[v.grupo]=grupos[v.grupo]||[]).push(v);});
+  let html='';
+  Object.entries(grupos).forEach(([g,vs])=>{
+    html+='<div class="grp">'+g+'</div>';
+    vs.forEach(v=>{ const pad=v.sub?'style="padding-left:34px;font-size:11.5px;"':''; html+='<a id="nav-'+v.id+'" '+pad+' onclick="irA(\''+v.id+'\')">'+v.icon+' '+v.label+'</a>'; });
+  });
+  document.getElementById('menu').innerHTML=html;
+}
+
+const TITULOS={tablero:['General','Tablero de control'],contratistas:['Administración LPS','Contratistas'],clientes:['Administración LPS','Clientes'],proyectos:['Administración LPS','Proyectos'],personal:['Operación','Control de personal'],reporte:['Operación','Reporte diario de personal'],indicadores:['Operación','Indicadores HHT'],documentos:['Operación','Documentos y verificación'],insp_vehiculos:['Inspecciones','Inspección de vehículos'],insp_epp:['Inspecciones','Inspección de EPP']};
+function irA(id){
+  document.querySelectorAll('.side a').forEach(a=>a.classList.remove('active'));
+  const nav=document.getElementById('nav-'+id); if(nav)nav.classList.add('active');
+  document.getElementById('barSub').textContent=TITULOS[id][0];
+  document.getElementById('barTitle').textContent=TITULOS[id][1];
+  RENDER[id]();
+}
+
+// Utilidades
+function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function hoyISO(){return new Date().toISOString().slice(0,10);}
+function estadoDoc(f){ if(!f)return{txt:'—',cls:''}; const h=new Date();h.setHours(0,0,0,0); const d=Math.round((new Date(f+'T00:00:00')-h)/86400000); if(d<0)return{txt:'Vencido',cls:'pill-bad'}; if(d<=30)return{txt:'Por vencer',cls:'pill-warn'}; return{txt:'Vigente',cls:'pill-ok'};}
+function abrirModal(html){ document.getElementById('modalRoot').innerHTML='<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal">'+html+'</div></div>'; }
+function cerrarModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function puede(accion){ // permisos simples de escritura
+  const r=sesion.rol;
+  if(accion==='crear_contratista')return['admin_hseq','gestor'].includes(r);
+  if(accion==='validar_doc')return['admin_hseq'].includes(r);
+  if(accion==='ver_salud')return true; // datos de salud visibles para todos (RQD)
+  return true;
+}
+
+const RENDER={};
+
+// ===================== TABLERO =====================
+RENDER.tablero=async function(){
+  const c=document.getElementById('content');
+  c.innerHTML='<div class="sec-title">Tablero de control</div><div class="sec-sub">Resumen general de la operación</div><div id="kpis" class="kpirow"></div><div class="card"><div style="font-size:12px;font-weight:600;margin-bottom:8px;">Documentos por estado</div><div id="tabDocs" style="font-size:12px;color:var(--slate);">Cargando…</div></div>';
+  const [ct,pr,tr,doc]=await Promise.all([
+    sb.from('gc_contratistas').select('*'),
+    sb.from('gc_proyectos').select('*'),
+    sb.from('gc_trabajadores').select('*'),
+    sb.from('gc_documentos').select('*')
+  ]);
+  // Diagnóstico: si alguna consulta falla (tablas faltantes/permisos), avisar en vez de mostrar ceros
+  const errCarga=[ct,pr,tr,doc].find(x=>x&&x.error);
+  if(errCarga&&errCarga.error){
+    const msg=errCarga.error.message||'';
+    document.getElementById('content').insertAdjacentHTML('afterbegin','<div style="background:#FEF3C7;border:1px solid #E5B94A;border-radius:8px;padding:12px 14px;font-size:12px;color:#7A5A11;margin-bottom:12px;">⚠ No se pudieron cargar todos los datos. '+(msg.toLowerCase().includes('does not exist')||msg.toLowerCase().includes('schema')?'Las tablas del módulo no están creadas: ejecute «contratistas-maestro.sql» en el SQL Editor de Supabase.':'Detalle: '+esc(msg))+'</div>');
+  }
+  const contr=ct.data||[],proy=pr.data||[],trab=tr.data||[],docs=doc.data||[];
+  const activos=trab.filter(t=>t.activo).length;
+  let venc=0,porV=0; docs.forEach(d=>{const e=estadoDoc(d.fecha_vigencia);if(e.txt==='Vencido')venc++;else if(e.txt==='Por vencer')porV++;});
+  document.getElementById('kpis').innerHTML=
+    kpi('Contratistas',contr.length,'var(--navy)')+
+    kpi('Proyectos',proy.length,'var(--navy)')+
+    kpi('Personal activo',activos,'var(--green)')+
+    kpi('Docs vencidos',venc,'var(--danger)');
+  const aprob=docs.filter(d=>d.decision==='si').length, rech=docs.filter(d=>d.decision==='no').length, pend=docs.filter(d=>!d.decision).length;
+  document.getElementById('tabDocs').innerHTML='<span class="pill pill-ok">Aprobados: '+aprob+'</span> &nbsp; <span class="pill pill-bad">Rechazados: '+rech+'</span> &nbsp; <span class="pill pill-warn">Pendientes: '+pend+'</span> &nbsp; <span class="pill pill-warn">Por vencer: '+porV+'</span>';
+};
+function kpi(l,v,color){return '<div class="kpi"><div class="l">'+l+'</div><div class="v" style="color:'+color+'">'+v+'</div></div>';}
+
+// ===================== CONTRATISTAS =====================
+RENDER.contratistas=async function(){
+  const c=document.getElementById('content');
+  const puedeCrear=puede('crear_contratista');
+  c.innerHTML='<div class="sec-title">Contratistas</div><div class="sec-sub">Registro y habilitación · filtra por nombre o NIT</div>'+
+    '<div class="toolbar"><input id="fCont" placeholder="Buscar por nombre o NIT" style="max-width:280px;" oninput="RENDER.contratistas.filtrar()">'+(puedeCrear?'<button class="btn btn-p" onclick="formContratista()">＋ Nuevo contratista</button>':'')+'</div>'+
+    '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>NIT</th><th>Razón social</th><th>Responsable</th><th>ARL</th><th>Estado</th><th></th></tr></thead><tbody id="contBody"></tbody></table></div>';
+  const {data}=await sb.from('gc_contratistas').select('*').order('created_at',{ascending:false});
+  RENDER.contratistas._data=data||[];
+  RENDER.contratistas.pintar(RENDER.contratistas._data);
+};
+RENDER.contratistas.pintar=function(rows){
+  const badge=e=>{const m={habilitado:'pill-ok',en_validacion:'pill-warn',suspendido:'pill-bad',condicionado:'pill-warn',vencido:'pill-bad',cerrado:'pill-gray',borrador:'pill-gray'};return '<span class="pill '+(m[e]||'pill-gray')+'">'+(e||'—')+'</span>';};
+  document.getElementById('contBody').innerHTML=rows.length?rows.map(r=>'<tr><td style="font-weight:600;">'+esc(r.nit)+'</td><td>'+esc(r.razon_social)+'</td><td>'+esc(r.responsable||'—')+'</td><td>'+esc(r.arl||'—')+'</td><td>'+badge(r.estado)+'</td><td style="white-space:nowrap;"><button class="btn-sm" onclick="verProyectosOT(\''+r.nit+'\')">🗂️ Proyectos/OT</button> <button class="btn-sm" onclick="formContratista(\''+r.nit+'\')">✏️</button></td></tr>').join(''):'<tr><td colspan="6" style="text-align:center;color:var(--slate);padding:20px;">Sin contratistas</td></tr>';
+};
+RENDER.contratistas.filtrar=function(){
+  const q=(document.getElementById('fCont').value||'').toLowerCase();
+  RENDER.contratistas.pintar(RENDER.contratistas._data.filter(r=>(r.razon_social||'').toLowerCase().includes(q)||(r.nit||'').includes(q)));
+};
+function formContratista(nit){
+  const d=nit?RENDER.contratistas._data.find(x=>x.nit===nit):{};
+  abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:12px;">'+(nit?'Editar':'Nuevo')+' contratista</div>'+
+    '<div class="grid2"><div><label>NIT (sin dígito verificación)</label><input id="m_nit" value="'+esc(d.nit||'')+'" '+(nit?'readonly':'')+'></div><div><label>Razón social</label><input id="m_rs" value="'+esc(d.razon_social||'')+'"></div>'+
+    '<div><label>Responsable</label><input id="m_resp" value="'+esc(d.responsable||'')+'"></div><div><label>Correo</label><input id="m_cor" value="'+esc(d.correo||'')+'"></div>'+
+    '<div><label>Teléfono</label><input id="m_tel" value="'+esc(d.telefono||'')+'"></div><div><label>ARL</label><input id="m_arl" value="'+esc(d.arl||'')+'"></div>'+
+    '<div><label>Cobertura geográfica</label><input id="m_cob" value="'+esc(d.cobertura||'')+'"></div><div><label>Estado</label><select id="m_est"><option value="borrador">Borrador</option><option value="en_validacion">En validación</option><option value="habilitado">Habilitado</option><option value="condicionado">Condicionado</option><option value="suspendido">Suspendido</option><option value="vencido">Vencido</option><option value="cerrado">Cerrado</option></select></div></div>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarContratista('+(nit?"'"+nit+"'":'null')+')">💾 Guardar</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
+  if(nit&&d.estado)document.getElementById('m_est').value=d.estado;
+}
+async function guardarContratista(nit){
+  const row={nit:document.getElementById('m_nit').value.trim(),razon_social:document.getElementById('m_rs').value.trim(),responsable:document.getElementById('m_resp').value.trim(),correo:document.getElementById('m_cor').value.trim(),telefono:document.getElementById('m_tel').value.trim(),arl:document.getElementById('m_arl').value.trim(),cobertura:document.getElementById('m_cob').value.trim(),estado:document.getElementById('m_est').value};
+  if(!row.nit||!row.razon_social){alert('NIT y razón social son obligatorios');return;}
+  try{ if(nit){await sb.from('gc_contratistas').update(row).eq('nit',nit);}else{const{error}=await sb.from('gc_contratistas').insert(row);if(error)throw error;} cerrarModal(); RENDER.contratistas(); }catch(e){alert('Error: '+e.message);}
+}
+
+// ===================== PROYECTOS Y ÓRDENES DE TRABAJO DEL CONTRATISTA =====================
+let contratistaActual=null;
+async function verProyectosOT(nit){
+  contratistaActual=nit;
+  document.getElementById('barSub').textContent='Contratista';
+  document.getElementById('barTitle').textContent='Proyectos y órdenes de trabajo';
+  const c=document.getElementById('content');
+  const [ct,ord,proy]=await Promise.all([
+    sb.from('gc_contratistas').select('*').eq('nit',nit).limit(1),
+    sb.from('gc_ordenes').select('*').eq('contratista_nit',nit).order('created_at',{ascending:false}),
+    sb.from('gc_proyectos').select('*').order('nombre')
+  ]);
+  const cont=(ct.data&&ct.data[0])||{};
+  const proyMap={}; (proy.data||[]).forEach(p=>proyMap[p.id]=p.nombre);
+  RENDER._proyectos=proy.data||[];
+  c.innerHTML='<button class="btn-sm" onclick="irA(\'contratistas\')">← Volver a contratistas</button>'+
+    '<div class="sec-title" style="margin-top:10px;">'+esc(cont.razon_social||nit)+'</div><div class="sec-sub">NIT '+esc(nit)+' · asocie uno o varios proyectos, cada uno con su orden de trabajo</div>'+
+    '<div class="toolbar"><button class="btn btn-p" onclick="formOrden()">＋ Asociar proyecto / orden de trabajo</button></div>'+
+    '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Orden de trabajo</th><th>Proyecto</th><th>Actividad</th><th>Inicio</th><th>Terminación</th><th>Estado</th><th></th></tr></thead><tbody id="ordBody"></tbody></table></div>';
+  document.getElementById('ordBody').innerHTML=(ord.data&&ord.data.length)?ord.data.map(o=>'<tr><td style="font-weight:600;">'+esc(o.codigo)+'</td><td>'+esc(proyMap[o.proyecto_id]||'—')+'</td><td style="font-size:11px;">'+esc(o.actividad||'—')+'</td><td>'+esc(o.fecha_inicio||'—')+'</td><td>'+esc(o.fecha_terminacion||'—')+'</td><td><span class="pill pill-gray">'+esc(o.estado||'—')+'</span></td><td style="white-space:nowrap;"><button class="btn-sm" onclick="registrarPersonalOT(\''+esc(o.codigo)+'\',\''+(o.proyecto_id||'')+'\')">👥 Personal</button> <button class="btn-sm" onclick="formOrden(\''+esc(o.codigo)+'\')">✏️</button></td></tr>').join(''):'<tr><td colspan="7" style="text-align:center;color:var(--slate);padding:20px;">Sin proyectos asociados. Use el botón de arriba.</td></tr>';
+}
+function formOrden(codigo){
+  const proyectos=RENDER._proyectos||[];
+  const optsProy='<option value="">— Seleccione proyecto —</option>'+proyectos.map(p=>'<option value="'+p.id+'">'+esc(p.nombre)+(p.contrato?' ('+esc(p.contrato)+')':'')+'</option>').join('');
+  const editar=!!codigo;
+  const load=async()=>{
+    let d={};
+    if(editar){ const {data}=await sb.from('gc_ordenes').select('*').eq('codigo',codigo).limit(1); d=(data&&data[0])||{}; }
+    abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(editar?'Editar':'Nueva')+' orden de trabajo</div><div class="sec-sub">Contrato / actividad a realizar</div>'+
+      '<div class="grid2"><div><label>Orden de trabajo / contrato</label><input id="o_cod" value="'+esc(d.codigo||'')+'" placeholder="OT-2026-001" '+(editar?'readonly':'')+'></div><div><label>Proyecto</label><select id="o_proy">'+optsProy+'</select></div>'+
+      '<div style="grid-column:1/3;"><label>Actividad principal</label><input id="o_act" value="'+esc(d.actividad||'')+'" placeholder="Descripción de actividad"></div>'+
+      '<div><label>Fecha de inicio</label><input type="date" id="o_ini" value="'+esc(d.fecha_inicio||'')+'"></div><div><label>Fecha de terminación</label><input type="date" id="o_fin" value="'+esc(d.fecha_terminacion||'')+'"></div>'+
+      '<div><label>Fecha adicional / suspensión</label><input type="date" id="o_adic" value="'+esc(d.fecha_adicional||'')+'"></div><div><label>Estado</label><select id="o_est"><option value="borrador">Borrador</option><option value="activa">Activa</option><option value="suspendida">Suspendida</option><option value="cerrada">Cerrada</option></select></div>'+
+      '<div style="grid-column:1/3;"><label>Motivo de detención o suspensión</label><textarea id="o_mot" rows="2" placeholder="Describa por qué se detiene el trabajo, si aplica.">'+esc(d.motivo_suspension||'')+'</textarea></div></div>'+
+      '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarOrden('+(editar?"'"+codigo+"'":'null')+')">💾 Guardar</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
+    if(editar){ if(d.proyecto_id)document.getElementById('o_proy').value=d.proyecto_id; if(d.estado)document.getElementById('o_est').value=d.estado; }
+  };
+  load();
+}
+async function guardarOrden(codigo){
+  const row={
+    codigo:document.getElementById('o_cod').value.trim(),
+    contratista_nit:contratistaActual,
+    proyecto_id:document.getElementById('o_proy').value||null,
+    actividad:document.getElementById('o_act').value.trim(),
+    fecha_inicio:document.getElementById('o_ini').value||null,
+    fecha_terminacion:document.getElementById('o_fin').value||null,
+    fecha_adicional:document.getElementById('o_adic').value||null,
+    motivo_suspension:document.getElementById('o_mot').value.trim(),
+    estado:document.getElementById('o_est').value
+  };
+  if(!row.codigo){alert('El número de orden de trabajo es obligatorio');return;}
+  if(!row.proyecto_id){alert('Seleccione el proyecto a asociar');return;}
+  try{
+    if(codigo){await sb.from('gc_ordenes').update(row).eq('codigo',codigo);}
+    else{const{error}=await sb.from('gc_ordenes').insert(row);if(error)throw error;}
+    cerrarModal(); verProyectosOT(contratistaActual);
+  }catch(e){alert('Error: '+e.message);}
+}
+
+// ===================== REGISTRO DE PERSONAL POR ORDEN DE TRABAJO =====================
+const CONDICIONES=[
+  {k:'afiliacion',label:'Afiliación / seguridad social',fecha:true},
+  {k:'alturas',label:'Curso alturas',fecha:true},
+  {k:'confinados',label:'Espacios confinados',fecha:true},
+  {k:'examen',label:'Examen médico ocupacional',fecha:true},
+  {k:'induccion',label:'Inducción HSEQ LPS',fecha:true},
+  {k:'conduccion',label:'Realiza actividades de conducción',fecha:false}
+];
+let ordenActual=null, proyectoActual=null;
+async function registrarPersonalOT(codigo,proyId){
+  ordenActual=codigo; proyectoActual=proyId||null;
+  document.getElementById('barSub').textContent='Orden '+codigo;
+  document.getElementById('barTitle').textContent='Control de personal';
+  const c=document.getElementById('content');
+  c.innerHTML='<button class="btn-sm" onclick="verProyectosOT(\''+contratistaActual+'\')">← Volver a proyectos/OT</button>'+
+    '<div class="sec-title" style="margin-top:10px;">Control de personal</div><div class="sec-sub">Orden de trabajo '+esc(codigo)+' · registre la ficha del trabajador</div>'+
+    '<div class="toolbar"><button class="btn btn-p" onclick="formPersonaOT()">＋ Agregar persona</button></div>'+
+    '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Cargo</th><th>Conduce</th><th>Condiciones</th><th></th></tr></thead><tbody id="persotBody"></tbody></table></div>';
+  cargarPersonalOT();
+}
+async function cargarPersonalOT(){
+  const {data}=await sb.from('gc_trabajadores').select('*').eq('orden_codigo',ordenActual).order('created_at',{ascending:false});
+  document.getElementById('persotBody').innerHTML=(data&&data.length)?data.map(t=>{
+    const ch=t.chequeo||{}; const n=Object.values(ch).filter(v=>v&&v.aplica).length;
+    return '<tr><td>'+esc(t.cedula)+'</td><td style="font-weight:600;">'+esc((t.nombres||'')+' '+(t.apellidos||''))+'</td><td>'+esc(t.cargo||'—')+'</td><td>'+(t.conduce?'<span class="pill pill-warn">Sí</span>':'<span class="pill pill-gray">No</span>')+'</td><td><span class="pill pill-ok">'+n+' vigentes</span></td><td><button class="btn-sm" onclick="formPersonaOT(\''+esc(t.cedula)+'\')">✏️</button></td></tr>';
+  }).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--slate);padding:20px;">Sin personal registrado</td></tr>';
+}
+async function formPersonaOT(ced){
+  let d={};
+  if(ced){ const {data}=await sb.from('gc_trabajadores').select('*').eq('cedula',ced).limit(1); d=(data&&data[0])||{}; }
+  const ch=d.chequeo||{};
+  const condHtml=CONDICIONES.map(co=>{
+    const cur=ch[co.k]||{}; const checked=cur.aplica?'checked':'';
+    const fechaBox=co.fecha?'<div id="cond_fecha_'+co.k+'" style="display:'+(cur.aplica?'flex':'none')+';gap:6px;margin:4px 0 8px 24px;align-items:center;"><span style="font-size:10px;color:var(--slate);">Vence:</span><input type="date" id="cond_venc_'+co.k+'" value="'+esc(cur.vence||'')+'" style="max-width:160px;"></div>':'';
+    return '<div><label style="display:flex;align-items:center;gap:7px;font-weight:400;text-transform:none;letter-spacing:0;font-size:12px;"><input type="checkbox" id="cond_'+co.k+'" '+checked+' style="width:auto;" onchange="'+(co.fecha?'document.getElementById(\'cond_fecha_'+co.k+'\').style.display=this.checked?\'flex\':\'none\'':'')+'"> '+co.label+'</label>'+fechaBox+'</div>';
+  }).join('');
+  abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(ced?'Editar':'Agregar')+' persona</div><div class="sec-sub">Datos personales y de seguridad social</div>'+
+    '<div class="grid3"><div><label>Número de cédula</label><input id="pt_ced" value="'+esc(d.cedula||'')+'" '+(ced?'readonly':'')+'></div><div><label>Nombres y apellidos</label><input id="pt_nom" value="'+esc(((d.nombres||'')+' '+(d.apellidos||'')).trim())+'"></div><div><label>Género</label><select id="pt_gen"><option value="">—</option><option>Masculino</option><option>Femenino</option><option>Otro</option></select></div>'+
+    '<div><label>Fecha de nacimiento</label><input type="date" id="pt_fnac" value="'+esc(d.fecha_nacimiento||'')+'"></div><div><label>Tipo de sangre / RH</label><input id="pt_rh" value="'+esc(d.rh||'')+'" placeholder="O+"></div><div><label>Correo electrónico</label><input id="pt_cor" value="'+esc(d.correo||'')+'"></div>'+
+    '<div><label>Teléfono celular</label><input id="pt_cel" value="'+esc(d.celular||'')+'"></div><div><label>Cargo</label><input id="pt_car" value="'+esc(d.cargo||'')+'"></div><div><label>EPS</label><input id="pt_eps" value="'+esc(d.eps||'')+'"></div>'+
+    '<div><label>ARL</label><input id="pt_arl" value="'+esc(d.arl||'')+'"></div><div><label>AFP</label><input id="pt_afp" value="'+esc(d.afp||'')+'"></div><div><label>Alergias / condiciones médicas</label><input id="pt_alg" value="'+esc(d.alergias||'')+'"></div>'+
+    '<div style="grid-column:1/3;"><label>Contacto de emergencia: nombre y parentesco</label><input id="pt_en" value="'+esc(d.emerg_nombre||'')+'"></div><div><label>Contacto emergencia: número</label><input id="pt_et" value="'+esc(d.emerg_telefono||'')+'"></div></div>'+
+    '<div class="card" style="margin-top:14px;border:1.5px solid #F5C0C0;"><div style="font-size:12px;font-weight:700;color:#991B1B;margin-bottom:8px;">Condición vigente por persona</div><div style="font-size:10px;color:var(--slate);margin-bottom:8px;">Marque lo que aplica; al marcar, indique la fecha de vencimiento cuando corresponda.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;">'+condHtml+'</div></div>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarPersonaOT('+(ced?"'"+ced+"'":'null')+')">💾 Agregar persona</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
+  if(ced){ if(d.genero)document.getElementById('pt_gen').value=d.genero; }
+}
+async function guardarPersonaOT(ced){
+  const nomComp=document.getElementById('pt_nom').value.trim();
+  const partes=nomComp.split(' ');
+  const chequeo={};
+  CONDICIONES.forEach(co=>{
+    const chk=document.getElementById('cond_'+co.k).checked;
+    if(co.fecha){ const v=document.getElementById('cond_venc_'+co.k); chequeo[co.k]={aplica:chk,vence:chk&&v?(v.value||null):null}; }
+    else { chequeo[co.k]={aplica:chk}; }
+  });
+  const row={
+    cedula:document.getElementById('pt_ced').value.trim(),
+    contratista_nit:contratistaActual, orden_codigo:ordenActual, proyecto_id:proyectoActual,
+    nombres:partes[0]||'', apellidos:partes.slice(1).join(' '),
+    genero:document.getElementById('pt_gen').value||null,
+    fecha_nacimiento:document.getElementById('pt_fnac').value||null,
+    rh:document.getElementById('pt_rh').value.trim(),
+    correo:document.getElementById('pt_cor').value.trim(),
+    celular:document.getElementById('pt_cel').value.trim(),
+    cargo:document.getElementById('pt_car').value.trim(),
+    eps:document.getElementById('pt_eps').value.trim(),
+    arl:document.getElementById('pt_arl').value.trim(),
+    afp:document.getElementById('pt_afp').value.trim(),
+    alergias:document.getElementById('pt_alg').value.trim(),
+    emerg_nombre:document.getElementById('pt_en').value.trim(),
+    emerg_telefono:document.getElementById('pt_et').value.trim(),
+    conduce:chequeo.conduccion?chequeo.conduccion.aplica:false,
+    chequeo, activo:true
+  };
+  if(!row.cedula||!nomComp){alert('Cédula y nombre son obligatorios');return;}
+  try{
+    if(ced){await sb.from('gc_trabajadores').update(row).eq('cedula',ced);}
+    else{const{error}=await sb.from('gc_trabajadores').insert(row);if(error)throw error;}
+    cerrarModal(); cargarPersonalOT();
+  }catch(e){alert('Error: '+e.message);}
+}
+
+// ===================== CLIENTES =====================
+RENDER.clientes=async function(){
+  const c=document.getElementById('content');
+  c.innerHTML='<div class="sec-title">Clientes</div><div class="sec-sub">Clientes de LPS · desde aquí se gestionan sus proyectos</div>'+
+    '<div class="toolbar"><button class="btn btn-p" onclick="formCliente()">＋ Nuevo cliente</button></div>'+
+    '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Cliente</th><th>NIT</th><th>Contacto</th><th>Correo</th><th>Proyectos</th><th></th></tr></thead><tbody id="cliBody"></tbody></table></div>';
+  const [cl,pr]=await Promise.all([sb.from('gc_clientes').select('*').order('nombre'),sb.from('gc_proyectos').select('cliente_id')]);
+  RENDER.clientes._data=cl.data||[];
+  const conteo={}; (pr.data||[]).forEach(p=>{if(p.cliente_id)conteo[p.cliente_id]=(conteo[p.cliente_id]||0)+1;});
+  document.getElementById('cliBody').innerHTML=(cl.data&&cl.data.length)?cl.data.map(r=>'<tr><td style="font-weight:600;">'+esc(r.nombre)+'</td><td>'+esc(r.nit||'—')+'</td><td>'+esc(r.contacto||'—')+'</td><td>'+esc(r.correo||'—')+'</td><td><span class="pill pill-gray">'+(conteo[r.id]||0)+'</span></td><td style="white-space:nowrap;"><button class="btn-sm" onclick="verProyectosCliente(\''+r.id+'\')">🗂️ Proyectos</button> <button class="btn-sm" onclick="formCliente(\''+r.id+'\')">✏️</button></td></tr>').join(''):'<tr><td colspan="6" style="text-align:center;color:var(--slate);padding:20px;">Sin clientes</td></tr>';
+};
+function formCliente(id){
+  const d=id?RENDER.clientes._data.find(x=>x.id===id):{};
+  abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:12px;">'+(id?'Editar':'Nuevo')+' cliente</div>'+
+    '<div class="grid2"><div><label>Nombre del cliente</label><input id="cl_nom" value="'+esc(d.nombre||'')+'"></div><div><label>NIT</label><input id="cl_nit" value="'+esc(d.nit||'')+'"></div>'+
+    '<div><label>Contacto</label><input id="cl_con" value="'+esc(d.contacto||'')+'"></div><div><label>Correo</label><input id="cl_cor" value="'+esc(d.correo||'')+'"></div>'+
+    '<div><label>Teléfono</label><input id="cl_tel" value="'+esc(d.telefono||'')+'"></div></div>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarCliente('+(id?"'"+id+"'":'null')+')">💾 Guardar</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
+}
+async function guardarCliente(id){
+  const row={nombre:document.getElementById('cl_nom').value.trim(),nit:document.getElementById('cl_nit').value.trim(),contacto:document.getElementById('cl_con').value.trim(),correo:document.getElementById('cl_cor').value.trim(),telefono:document.getElementById('cl_tel').value.trim()};
+  if(!row.nombre){alert('El nombre del cliente es obligatorio');return;}
+  try{ if(id){await sb.from('gc_clientes').update(row).eq('id',id);}else{await sb.from('gc_clientes').insert(row);} cerrarModal(); RENDER.clientes(); }catch(e){alert('Error: '+e.message);}
+}
+function verProyectosCliente(id){ clienteFiltro=id; irA('proyectos'); }
+let clienteFiltro=null;
+
+// ===================== PROYECTOS =====================
+RENDER.proyectos=async function(){
+  const c=document.getElementById('content');
+  const [pr,cl]=await Promise.all([sb.from('gc_proyectos').select('*').order('created_at',{ascending:false}),sb.from('gc_clientes').select('*').order('nombre')]);
+  RENDER.proyectos._data=pr.data||[]; RENDER.proyectos._clientes=cl.data||[];
+  const cliMap={}; (cl.data||[]).forEach(x=>cliMap[x.id]=x.nombre);
+  let data=RENDER.proyectos._data;
+  let subtitulo='Proyectos y sitios donde operan los contratistas';
+  if(clienteFiltro){ data=data.filter(p=>p.cliente_id===clienteFiltro); subtitulo='Proyectos del cliente: '+esc(cliMap[clienteFiltro]||'—')+' · <a onclick="clienteFiltro=null;irA(\'proyectos\')" style="color:var(--blue);cursor:pointer;">ver todos</a>'; }
+  c.innerHTML='<div class="sec-title">Proyectos</div><div class="sec-sub">'+subtitulo+'</div>'+
+    '<div class="toolbar"><button class="btn btn-p" onclick="formProyecto()">＋ Nuevo proyecto</button></div>'+
+    '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Proyecto</th><th>Cliente</th><th>Objeto del proyecto</th><th>Inicio</th><th>Terminación</th><th>Administrador</th><th></th></tr></thead><tbody id="proyBody"></tbody></table></div>';
+  document.getElementById('proyBody').innerHTML=(data&&data.length)?data.map(r=>'<tr><td style="font-weight:600;">'+esc(r.nombre)+'<div style="font-size:9px;color:var(--slate);">'+esc(r.tipo_proyecto||r.contrato||'')+(r.ciudad?' · '+esc(r.ciudad):'')+'</div></td><td>'+esc(cliMap[r.cliente_id]||r.cliente||'—')+'</td><td style="max-width:200px;font-size:11px;">'+esc(r.objeto_proyecto||r.objeto_contrato||'—')+'</td><td>'+esc(r.fecha_inicio||'—')+'</td><td>'+esc(r.fecha_terminacion||'—')+'</td><td>'+esc(r.administrador||r.lider_proyecto||'—')+'</td><td><button class="btn-sm" onclick="formProyecto(\''+r.id+'\')">✏️</button></td></tr>').join(''):'<tr><td colspan="7" style="text-align:center;color:var(--slate);padding:20px;">Sin proyectos</td></tr>';
+};
+function formProyecto(id){
+  const d=id?RENDER.proyectos._data.find(x=>x.id===id):{};
+  const clientes=RENDER.proyectos._clientes||[];
+  const optsCli='<option value="">—</option>'+clientes.map(x=>'<option value="'+x.id+'">'+esc(x.nombre)+'</option>').join('');
+  abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:12px;">'+(id?'Editar':'Nuevo')+' proyecto</div>'+
+    '<div class="grid2"><div><label>Nombre del proyecto</label><input id="p_nom" value="'+esc(d.nombre||'')+'"></div><div><label>Cliente</label><select id="p_cli">'+optsCli+'</select></div>'+
+    '<div style="grid-column:1/3;"><label>Objeto del proyecto</label><textarea id="p_obj" rows="2">'+esc(d.objeto_proyecto||d.objeto_contrato||'')+'</textarea></div>'+
+    '<div><label>Fecha de inicio</label><input type="date" id="p_ini" value="'+esc(d.fecha_inicio||'')+'"></div><div><label>Fecha de terminación</label><input type="date" id="p_fin" value="'+esc(d.fecha_terminacion||'')+'"></div>'+
+    '<div><label>Administrador</label><input id="p_lid" value="'+esc(d.administrador||d.lider_proyecto||'')+'"></div><div><label>Tipo de proyecto</label><select id="p_con"><option>Móvil</option><option>Brownfield</option><option>Greenfield</option><option>Otros</option></select></div>'+
+    '<div><label>Ciudad</label><input id="p_ciu" value="'+esc(d.ciudad||'')+'"></div><div><label>Tipo de sitio</label><input id="p_tip" value="'+esc(d.tipo_sitio||'')+'" placeholder="Torre, rooftop, estación base…"></div></div>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarProyecto('+(id?"'"+id+"'":'null')+')">💾 Guardar</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
+  if(id){ if(d.tipo_proyecto||d.contrato)document.getElementById('p_con').value=(d.tipo_proyecto||d.contrato); if(d.cliente_id)document.getElementById('p_cli').value=d.cliente_id; }
+  else if(clienteFiltro)document.getElementById('p_cli').value=clienteFiltro;
+}
+async function guardarProyecto(id){
+  const row={nombre:document.getElementById('p_nom').value.trim(),cliente_id:document.getElementById('p_cli').value||null,objeto_proyecto:document.getElementById('p_obj').value.trim(),fecha_inicio:document.getElementById('p_ini').value||null,fecha_terminacion:document.getElementById('p_fin').value||null,administrador:document.getElementById('p_lid').value.trim(),tipo_proyecto:document.getElementById('p_con').value,ciudad:document.getElementById('p_ciu').value.trim(),tipo_sitio:document.getElementById('p_tip').value.trim()};
+  if(!row.nombre){alert('El nombre del proyecto es obligatorio');return;}
+  try{ if(id){await sb.from('gc_proyectos').update(row).eq('id',id);}else{await sb.from('gc_proyectos').insert(row);} cerrarModal(); RENDER.proyectos(); }catch(e){alert('Error: '+e.message);}
+}
+
+// ===================== INSPECCIONES: VEHÍCULOS y EPP =====================
+RENDER.insp_vehiculos=function(){
+  const c=document.getElementById('content');
+  c.innerHTML='<div class="sec-title">Inspección de vehículos</div><div class="sec-sub">Preoperacional de vehículos y motos</div>'+
+    '<div class="card" style="text-align:center;padding:30px;"><div style="font-size:40px;">🚗</div><div style="font-size:13px;color:var(--slate);margin:10px 0 16px;">Abre el módulo de verificación de vehículos para registrar o consultar inspecciones.</div><a class="btn btn-p" href="verificacion-vehiculos.html" style="text-decoration:none;">Abrir verificación de vehículos →</a></div>';
+};
+RENDER.insp_epp=function(){
+  const c=document.getElementById('content');
+  c.innerHTML='<div class="sec-title">Inspección de EPP</div><div class="sec-sub">Elementos de protección personal</div>'+
+    '<div class="card" style="text-align:center;padding:30px;"><div style="font-size:40px;">🦺</div><div style="font-size:13px;color:var(--slate);margin:10px 0;">Módulo de inspección de EPP — en preparación.</div></div>';
+};
+
+// ===================== PERSONAL =====================
+RENDER.personal=async function(){
+  const c=document.getElementById('content');
+  const verSalud=puede('ver_salud');
+  c.innerHTML='<div class="sec-title">Control de personal</div><div class="sec-sub">Trabajadores de los contratistas'+(verSalud?'':' · datos de salud restringidos a HSEQ')+'</div>'+
+    '<div class="toolbar"><input id="fPers" placeholder="Buscar por nombre o cédula" style="max-width:280px;" oninput="RENDER.personal.filtrar()"><button class="btn btn-p" onclick="formTrabajador()">＋ Agregar persona</button></div>'+
+    '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Cargo</th><th>Contratista</th><th>Conduce</th><th>Estado</th><th></th></tr></thead><tbody id="persBody"></tbody></table></div>';
+  const {data}=await sb.from('gc_trabajadores').select('*').order('created_at',{ascending:false});
+  RENDER.personal._data=data||[];
+  RENDER.personal.pintar(RENDER.personal._data);
+};
+RENDER.personal.pintar=function(rows){
+  document.getElementById('persBody').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.cedula)+'</td><td style="font-weight:600;">'+esc((r.nombres||'')+' '+(r.apellidos||''))+'</td><td>'+esc(r.cargo||'—')+'</td><td>'+esc(r.contratista_nit||'—')+'</td><td>'+(r.conduce?'<span class="pill pill-warn">Sí</span>':'<span class="pill pill-gray">No</span>')+'</td><td>'+(r.activo?'<span class="pill pill-ok">Activo</span>':'<span class="pill pill-gray">Inactivo</span>')+'</td><td><button class="btn-sm" onclick="formTrabajador(\''+r.cedula+'\')">✏️</button></td></tr>').join(''):'<tr><td colspan="7" style="text-align:center;color:var(--slate);padding:20px;">Sin personal</td></tr>';
+};
+RENDER.personal.filtrar=function(){
+  const q=(document.getElementById('fPers').value||'').toLowerCase();
+  RENDER.personal.pintar(RENDER.personal._data.filter(r=>((r.nombres||'')+' '+(r.apellidos||'')).toLowerCase().includes(q)||(r.cedula||'').includes(q)));
+};
+async function formTrabajador(ced){
+  const d=ced?RENDER.personal._data.find(x=>x.cedula===ced):{};
+  const {data:contr}=await sb.from('gc_contratistas').select('nit,razon_social');
+  const optsC=(contr||[]).map(x=>'<option value="'+x.nit+'">'+esc(x.razon_social)+'</option>').join('');
+  const verSalud=puede('ver_salud');
+  const saludHtml=verSalud?('<div class="sec-sub" style="margin-top:14px;color:var(--danger);font-weight:600;">Datos de salud</div><div class="grid3"><div><label>RH</label><input id="t_rh" value="'+esc(d.rh||'')+'"></div><div><label>Alergias</label><input id="t_alg" value="'+esc(d.alergias||'')+'"></div><div><label>Restricciones</label><input id="t_res" value="'+esc(d.restricciones||'')+'"></div></div>'):'<div class="card" style="margin-top:12px;background:#F8FAFC;font-size:11px;color:var(--slate);">🔒 Los datos de salud solo son visibles y editables por perfiles HSEQ.</div>';
+  abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:12px;">'+(ced?'Editar':'Agregar')+' trabajador</div>'+
+    '<div class="grid3"><div><label>Cédula</label><input id="t_ced" value="'+esc(d.cedula||'')+'" '+(ced?'readonly':'')+'></div><div><label>Nombres</label><input id="t_nom" value="'+esc(d.nombres||'')+'"></div><div><label>Apellidos</label><input id="t_ape" value="'+esc(d.apellidos||'')+'"></div>'+
+    '<div><label>Contratista</label><select id="t_con"><option value="">—</option>'+optsC+'</select></div><div><label>Cargo</label><input id="t_car" value="'+esc(d.cargo||'')+'"></div><div><label>N° contacto</label><input id="t_cel" value="'+esc(d.celular||'')+'"></div>'+
+    '<div><label>Género</label><select id="t_gen"><option value="">—</option><option>Masculino</option><option>Femenino</option><option>Otro</option></select></div><div><label>Correo</label><input id="t_cor" value="'+esc(d.correo||'')+'"></div><div><label>¿Conduce para el proyecto?</label><select id="t_cond"><option value="false">No</option><option value="true">Sí</option></select></div>'+
+    '<div><label>EPS</label><input id="t_eps" value="'+esc(d.eps||'')+'"></div><div><label>ARL</label><input id="t_arl" value="'+esc(d.arl||'')+'"></div><div><label>AFP</label><input id="t_afp" value="'+esc(d.afp||'')+'"></div>'+
+    '<div><label>Contacto emergencia</label><input id="t_en" value="'+esc(d.emerg_nombre||'')+'"></div><div><label>Parentesco</label><input id="t_ep" value="'+esc(d.emerg_parentesco||'')+'"></div><div><label>Tel. emergencia</label><input id="t_et" value="'+esc(d.emerg_telefono||'')+'"></div>'+
+    '<div><label>Fecha ingreso</label><input type="date" id="t_fi" value="'+esc(d.fecha_ingreso||'')+'"></div><div><label>Estado</label><select id="t_act"><option value="true">Activo</option><option value="false">Inactivo</option></select></div></div>'+
+    saludHtml+
+    '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarTrabajador('+(ced?"'"+ced+"'":'null')+')">💾 Guardar</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
+  if(ced){ if(d.genero)document.getElementById('t_gen').value=d.genero; if(d.contratista_nit)document.getElementById('t_con').value=d.contratista_nit; document.getElementById('t_cond').value=d.conduce?'true':'false'; document.getElementById('t_act').value=d.activo?'true':'false'; }
+}
+async function guardarTrabajador(ced){
+  const g=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};
+  const row={cedula:g('t_ced'),nombres:g('t_nom'),apellidos:g('t_ape'),contratista_nit:g('t_con')||null,cargo:g('t_car'),celular:g('t_cel'),genero:g('t_gen')||null,correo:g('t_cor'),conduce:g('t_cond')==='true',eps:g('t_eps'),arl:g('t_arl'),afp:g('t_afp'),emerg_nombre:g('t_en'),emerg_parentesco:g('t_ep'),emerg_telefono:g('t_et'),fecha_ingreso:g('t_fi')||null,activo:g('t_act')==='true'};
+  if(puede('ver_salud')){ row.rh=g('t_rh'); row.alergias=g('t_alg'); row.restricciones=g('t_res'); }
+  if(!row.cedula||!row.nombres||!row.apellidos){alert('Cédula, nombres y apellidos son obligatorios');return;}
+  try{ if(ced){await sb.from('gc_trabajadores').update(row).eq('cedula',ced);}else{const{error}=await sb.from('gc_trabajadores').insert(row);if(error)throw error;} cerrarModal(); RENDER.personal(); }catch(e){alert('Error: '+e.message);}
+}
+
+// ===================== REPORTE DIARIO =====================
+RENDER.reporte=async function(){
+  const c=document.getElementById('content');
+  c.innerHTML='<div class="sec-title">Reporte diario de personal</div><div class="sec-sub">Marca el personal activo en el proyecto para la fecha. Cada persona presente suma 8 HHT (editable).</div>'+
+    '<div class="card" style="margin-bottom:14px;"><div class="grid3"><div><label>Fecha</label><input type="date" id="r_fecha" value="'+hoyISO()+'"></div><div><label>Proyecto</label><select id="r_proy"></select></div><div><label>Frente / turno</label><input id="r_frente" placeholder="Frente · turno"></div></div><div style="margin-top:12px;"><button class="btn btn-p" onclick="guardarReporte()">💾 Reportar seleccionados</button></div></div>'+
+    '<div class="card" style="padding:6px 16px 14px;"><div style="font-size:12px;font-weight:600;padding:8px 0;">Seleccione el personal presente</div><table><thead><tr><th style="width:40px;"></th><th>Cédula</th><th>Nombre</th><th>Contratista</th><th style="width:90px;">HHT</th></tr></thead><tbody id="repBody"></tbody></table></div>'+
+    '<div class="card" style="margin-top:14px;padding:6px 16px 14px;"><div style="font-size:12px;font-weight:600;padding:8px 0;">Reportes de hoy · <span id="hhtHoy" style="color:var(--blue-d);"></span></div><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Proyecto</th><th>Frente</th><th>HHT</th></tr></thead><tbody id="repHoy"></tbody></table></div>';
+  const [tr,pr]=await Promise.all([sb.from('gc_trabajadores').select('*').eq('activo',true),sb.from('gc_proyectos').select('*')]);
+  RENDER.reporte._trab=tr.data||[];
+  document.getElementById('r_proy').innerHTML='<option value="">—</option>'+(pr.data||[]).map(p=>'<option value="'+p.id+'">'+esc(p.nombre)+'</option>').join('');
+  document.getElementById('repBody').innerHTML=RENDER.reporte._trab.map(t=>'<tr><td><input type="checkbox" style="width:auto;" value="'+t.cedula+'" class="repchk" data-nit="'+esc(t.contratista_nit||'')+'"></td><td>'+esc(t.cedula)+'</td><td>'+esc((t.nombres||'')+' '+(t.apellidos||''))+'</td><td>'+esc(t.contratista_nit||'—')+'</td><td><input type="number" min="0" step="0.5" value="8" class="rephht" data-ced="'+esc(t.cedula)+'" style="width:70px;"></td></tr>').join('')||'<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:16px;">Sin personal activo</td></tr>';
+  cargarReportesHoy();
+};
+async function cargarReportesHoy(){
+  const {data}=await sb.from('gc_reporte_diario').select('*, gc_trabajadores(nombres,apellidos), gc_proyectos(nombre)').eq('fecha',hoyISO());
+  const rows=data||[];
+  const totalHHT=rows.reduce((s,r)=>s+(Number(r.hht)||0),0);
+  document.getElementById('hhtHoy').textContent='Total HHT hoy: '+totalHHT+' h ('+rows.length+' persona(s))';
+  document.getElementById('repHoy').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.cedula)+'</td><td>'+esc((r.gc_trabajadores?.nombres||'')+' '+(r.gc_trabajadores?.apellidos||''))+'</td><td>'+esc(r.gc_proyectos?.nombre||'—')+'</td><td>'+esc(r.frente_trabajo||r.frente||'—')+'</td><td>'+(Number(r.hht)||0)+' h</td></tr>').join(''):'<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:16px;">Sin reportes hoy</td></tr>';
+}
+async function guardarReporte(){
+  const fecha=document.getElementById('r_fecha').value, proy=document.getElementById('r_proy').value||null, frente=document.getElementById('r_frente').value.trim();
+  const checks=[...document.querySelectorAll('.repchk:checked')];
+  if(!checks.length){alert('Seleccione al menos una persona');return;}
+  const hhtByCed={}; document.querySelectorAll('.rephht').forEach(i=>{ hhtByCed[i.dataset.ced]=Number(i.value)||0; });
+  const rows=checks.map(c=>({fecha,cedula:c.value,contratista_nit:c.dataset.nit||null,proyecto_id:proy,frente_trabajo:frente,hht:hhtByCed[c.value]!=null?hhtByCed[c.value]:8}));
+  try{ await sb.from('gc_reporte_diario').upsert(rows,{onConflict:'fecha,cedula,proyecto_id'}); alert('✅ '+checks.length+' persona(s) reportada(s)'); cargarReportesHoy(); document.querySelectorAll('.repchk:checked').forEach(c=>c.checked=false);}catch(e){alert('Error: '+e.message);}
+}
+
+
+// ===================== INDICADORES HHT =====================
+RENDER.indicadores=async function(){
+  const c=document.getElementById('content');
+  c.innerHTML='<div class="sec-title">Indicadores HHT</div><div class="sec-sub">Horas Hombre Trabajadas · segmentación por proyecto, contratista y periodo</div>'+
+    '<div class="card" style="margin-bottom:14px;"><div class="grid3">'+
+      '<div><label>Desde</label><input type="date" id="i_fd" onchange="pintarIndicadores()"></div>'+
+      '<div><label>Hasta</label><input type="date" id="i_fh" onchange="pintarIndicadores()"></div>'+
+      '<div><label>Periodo del gráfico</label><select id="i_periodo" onchange="pintarIndicadores()"><option value="dia">Día</option><option value="mes" selected>Mes</option></select></div>'+
+    '</div></div>'+
+    '<div id="i_kpis" class="grid3" style="margin-bottom:14px;"></div>'+
+    '<div class="card"><div style="font-size:12px;font-weight:600;padding:6px 0;">HHT por proyecto</div><div id="i_proy"></div></div>'+
+    '<div class="card"><div style="font-size:12px;font-weight:600;padding:6px 0;">HHT por contratista</div><div id="i_contr"></div></div>'+
+    '<div class="card"><div style="font-size:12px;font-weight:600;padding:6px 0;">HHT por periodo</div><div id="i_periodo_chart"></div></div>';
+  const [rep,proy,contr]=await Promise.all([
+    sb.from('gc_reporte_diario').select('*').limit(20000),
+    sb.from('gc_proyectos').select('id,nombre'),
+    sb.from('gc_contratistas').select('nit,razon_social')
+  ]);
+  RENDER.indicadores._rep=rep.data||[];
+  RENDER.indicadores._proy={}; (proy.data||[]).forEach(p=>RENDER.indicadores._proy[p.id]=p.nombre);
+  RENDER.indicadores._contr={}; (contr.data||[]).forEach(x=>RENDER.indicadores._contr[x.nit]=x.razon_social);
+  pintarIndicadores();
+};
+function barrasHHT(obj, mapNombre){
+  const rows=Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+  if(!rows.length) return '<div style="font-size:12px;color:var(--slate);">Sin datos</div>';
+  const max=Math.max(1,...rows.map(x=>x[1]));
+  return '<div style="display:flex;flex-direction:column;gap:6px;">'+rows.map(([k,v])=>{
+    const nombre=mapNombre?(mapNombre[k]||k||'—'):k;
+    return '<div style="display:flex;align-items:center;gap:8px;font-size:11px;"><span style="width:150px;text-align:right;color:var(--slate);">'+esc(nombre)+'</span><div style="height:16px;background:var(--blue);border-radius:3px;width:'+(v/max*100)+'%;min-width:2px;"></div><span style="font-weight:600;">'+v+' h</span></div>';
+  }).join('')+'</div>';
+}
+function pintarIndicadores(){
+  const rep=RENDER.indicadores._rep||[];
+  const fd=document.getElementById('i_fd').value, fh=document.getElementById('i_fh').value;
+  const periodo=document.getElementById('i_periodo').value;
+  let rows=rep.filter(r=>{ const f=(r.fecha||'').slice(0,10); if(fd&&f<fd)return false; if(fh&&f>fh)return false; return true; });
+  const totalHHT=rows.reduce((s,r)=>s+(Number(r.hht)||0),0);
+  const personas=new Set(rows.map(r=>r.cedula)).size;
+  const dias=new Set(rows.map(r=>(r.fecha||'').slice(0,10))).size;
+  document.getElementById('i_kpis').innerHTML=
+    '<div class="kpi"><div class="t" style="font-size:10px;color:var(--slate);text-transform:uppercase;">HHT totales</div><div class="n" style="font-size:24px;font-weight:700;">'+totalHHT+' h</div></div>'+
+    '<div class="kpi"><div class="t" style="font-size:10px;color:var(--slate);text-transform:uppercase;">Personas distintas</div><div class="n" style="font-size:24px;font-weight:700;">'+personas+'</div></div>'+
+    '<div class="kpi"><div class="t" style="font-size:10px;color:var(--slate);text-transform:uppercase;">Días con reporte</div><div class="n" style="font-size:24px;font-weight:700;">'+dias+'</div></div>';
+  // Por proyecto
+  const porProy={}; rows.forEach(r=>{ const k=r.proyecto_id||'(sin proyecto)'; porProy[k]=(porProy[k]||0)+(Number(r.hht)||0); });
+  document.getElementById('i_proy').innerHTML=barrasHHT(porProy,RENDER.indicadores._proy);
+  // Por contratista
+  const porContr={}; rows.forEach(r=>{ const k=r.contratista_nit||'(sin contratista)'; porContr[k]=(porContr[k]||0)+(Number(r.hht)||0); });
+  document.getElementById('i_contr').innerHTML=barrasHHT(porContr,RENDER.indicadores._contr);
+  // Por periodo (día o mes)
+  const porPer={}; rows.forEach(r=>{ const f=(r.fecha||'').slice(0,10); const k=periodo==='dia'?f:f.slice(0,7); porPer[k]=(porPer[k]||0)+(Number(r.hht)||0); });
+  const ordenado={}; Object.keys(porPer).sort().forEach(k=>ordenado[k]=porPer[k]);
+  document.getElementById('i_periodo_chart').innerHTML=barrasHHT(ordenado,null);
+}
+
+// ===================== DOCUMENTOS =====================
+RENDER.documentos=async function(){
+  const c=document.getElementById('content');
+  const valida=puede('validar_doc');
+  const {data:conf}=await sb.from('gc_config').select('*').eq('clave','correo_remision').limit(1);
+  const correo=(conf&&conf[0])?conf[0].valor:'estefany.rodriguez@lpsgrupo.com';
+  c.innerHTML='<div class="sec-title">Documentos y verificación</div><div class="sec-sub">Carga y validación documental · remisión a '+esc(correo)+(valida?' <button class="btn-sm" onclick="editarCorreo()">✏️ correo</button>':'')+'</div>'+
+    '<div class="toolbar"><button class="btn btn-p" onclick="formDoc()">＋ Cargar documento</button></div>'+
+    '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Documento</th><th>Contratista</th><th>Vence</th><th>Estado</th><th>Validación</th><th></th></tr></thead><tbody id="docBody"></tbody></table></div>';
+  const {data}=await sb.from('gc_documentos').select('*').order('created_at',{ascending:false});
+  RENDER.documentos._data=data||[];
+  const decPill=d=>d==='si'?'<span class="pill pill-ok">Sí</span>':d==='no'?'<span class="pill pill-bad">No</span>':d==='no_aplica'?'<span class="pill pill-gray">N.A.</span>':'<span class="pill pill-warn">Pendiente</span>';
+  document.getElementById('docBody').innerHTML=(data&&data.length)?data.map(r=>{const e=estadoDoc(r.fecha_vigencia);return '<tr><td style="font-weight:600;">'+esc(r.tipo)+'<div style="font-size:9px;color:var(--slate);">'+esc(r.actividad||'')+'</div></td><td>'+esc(r.contratista_nit||'—')+'</td><td>'+esc(r.fecha_vigencia||'—')+'</td><td>'+(e.cls?'<span class="pill '+e.cls+'">'+e.txt+'</span>':'—')+'</td><td>'+decPill(r.decision)+'</td><td style="white-space:nowrap;">'+(valida?'<button class="btn-sm" onclick="validarDoc(\''+r.id+'\')">✅ Validar</button>':'')+(r.archivo_url?'<button class="btn-sm" onclick="window.open(\''+esc(r.archivo_url)+'\',\'_blank\')">👁</button>':'')+'</td></tr>';}).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--slate);padding:20px;">Sin documentos</td></tr>';
+};
+async function formDoc(){
+  const {data:contr}=await sb.from('gc_contratistas').select('nit,razon_social');
+  const opts=(contr||[]).map(x=>'<option value="'+x.nit+'">'+esc(x.razon_social)+'</option>').join('');
+  abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:12px;">Cargar documento</div>'+
+    '<div class="grid2"><div><label>Contratista</label><select id="d_con"><option value="">—</option>'+opts+'</select></div><div><label>Tipo de documento</label><input id="d_tipo" placeholder="Licencia, SOAT, plan rescate…"></div>'+
+    '<div><label>Actividad</label><input id="d_act" placeholder="Alturas, conducción…"></div><div><label>Fecha de vigencia</label><input type="date" id="d_venc"></div>'+
+    '<div style="grid-column:1/3;"><label>Enlace / URL del archivo</label><input id="d_url" placeholder="https://…"></div></div>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarDoc()">💾 Guardar</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
+}
+async function guardarDoc(){
+  const row={contratista_nit:document.getElementById('d_con').value||null,tipo:document.getElementById('d_tipo').value.trim(),actividad:document.getElementById('d_act').value.trim(),fecha_vigencia:document.getElementById('d_venc').value||null,archivo_url:document.getElementById('d_url').value.trim()};
+  if(!row.tipo){alert('El tipo de documento es obligatorio');return;}
+  try{ await sb.from('gc_documentos').insert(row); cerrarModal(); RENDER.documentos(); }catch(e){alert('Error: '+e.message);}
+}
+function validarDoc(id){
+  const d=RENDER.documentos._data.find(x=>x.id===id);
+  abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:4px;">Validar documento</div><div class="sec-sub">'+esc(d.tipo)+'</div>'+
+    '<div><label>Decisión</label><select id="v_dec"><option value="si">Sí — cumple</option><option value="no">No — no cumple</option><option value="no_aplica">No aplica</option></select></div>'+
+    '<div style="margin-top:10px;"><label>Observaciones</label><textarea id="v_obs" rows="3">'+esc(d.observaciones||'')+'</textarea></div>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarValidacion(\''+id+'\')">💾 Guardar validación</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
+  if(d.decision)document.getElementById('v_dec').value=d.decision;
+}
+async function guardarValidacion(id){
+  try{ await sb.from('gc_documentos').update({decision:document.getElementById('v_dec').value,observaciones:document.getElementById('v_obs').value.trim(),validado_en:new Date().toISOString()}).eq('id',id); cerrarModal(); RENDER.documentos(); }catch(e){alert('Error: '+e.message);}
+}
+function editarCorreo(){
+  const k=prompt('🔐 Clave para actualizar el correo de remisión:'); if(k===null)return;
+  if(k!=='LPS-SIG'){alert('Clave incorrecta');return;}
+  const nuevo=prompt('Nuevo correo de remisión:'); if(!nuevo)return;
+  sb.from('gc_config').update({valor:nuevo.trim()}).eq('clave','correo_remision').then(()=>RENDER.documentos());
+}
+</script>
+</body>
+</html>
