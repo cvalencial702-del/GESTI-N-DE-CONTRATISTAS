@@ -363,24 +363,35 @@ async function formPersonaOT(ced){
   const {data:contrLista}=await sb.from('gc_contratistas').select('nit,razon_social').limit(2000);
   const optsContr='<option value="">—</option>'+(contrLista||[]).map(c=>'<option value="'+esc(c.nit)+'" '+((d.contratista_nit||contratistaActual)===c.nit?'selected':'')+'>'+esc(c.razon_social||c.nit)+'</option>').join('');
   const cats=['A1','A2','B1','B2','B3','C1','C2','C3'];
-  const conduceOn=(ch.conduccion&&ch.conduccion.aplica)||d.conduce;
-  const condBloque='<div id="condDetalle" style="display:'+(conduceOn?'block':'none')+';margin:6px 0 4px 24px;">'+
+  // Detalle de licencia que aparece bajo la casilla de conducción
+  const condDetalleLic='<div id="condDetalle" style="display:'+((ch.conduccion&&ch.conduccion.aplica)||d.conduce?'block':'none')+';margin:6px 0 4px 24px;">'+
     '<div class="grid3">'+
     '<div><label>Categoría</label><select id="pt_liccat" '+bloq+'><option value="">—</option>'+cats.map(x=>'<option '+(d.lic_categoria===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'+
     '<div><label>N° licencia</label><input id="pt_licnum" value="'+esc(d.lic_numero||'')+'" '+bloq+'></div>'+
     '<div><label>Vigencia licencia</label><input type="date" id="pt_licvig" value="'+esc(d.lic_vigencia||'')+'" '+bloq+'></div>'+
     '</div></div>';
+  // Recuadro completo de condiciones (todas las casillas originales)
+  const condHtml=CONDICIONES.map(co=>{
+    const cur=ch[co.k]||{}; const checked=cur.aplica?'checked':'';
+    const esConduccion=(co.k==='conduccion');
+    // Casilla con fecha de vencimiento (para las que la tienen)
+    const fechaBox=co.fecha?'<div id="cond_fecha_'+co.k+'" style="display:'+(cur.aplica?'flex':'none')+';gap:6px;margin:4px 0 8px 24px;align-items:center;"><span style="font-size:10px;color:var(--slate);">Vence:</span><input type="date" id="cond_venc_'+co.k+'" value="'+esc(cur.vence||'')+'" style="max-width:160px;" '+bloq+'></div>':'';
+    // La casilla de conducción usa el id pt_conduce y despliega los campos de licencia
+    const inputId=esConduccion?'pt_conduce':'cond_'+co.k;
+    const onchange=esConduccion
+      ? 'document.getElementById(\'condDetalle\').style.display=this.checked?\'block\':\'none\''
+      : (co.fecha?'document.getElementById(\'cond_fecha_'+co.k+'\').style.display=this.checked?\'flex\':\'none\'':'');
+    return '<div><label style="display:flex;align-items:center;gap:7px;font-weight:400;text-transform:none;letter-spacing:0;font-size:12px;"><input type="checkbox" id="'+inputId+'" '+checked+' style="width:auto;" onchange="'+onchange+'"> '+co.label+'</label>'+fechaBox+(esConduccion?condDetalleLic:'')+'</div>';
+  }).join('');
   abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(ced?'Editar':'Agregar')+' persona</div><div class="sec-sub">Datos personales y de seguridad social'+(esContr?' · (como contratista solo puede editar Estado y Conducción)':'')+'</div>'+
-    '<div class="grid3"><div><label>Número de cédula</label><input id="pt_ced" value="'+esc(d.cedula||'')+'" '+(ced?'readonly':(esContr?'':''))+' '+(esContr?'readonly':'')+'></div><div><label>Nombres y apellidos</label><input id="pt_nom" value="'+esc(((d.nombres||'')+' '+(d.apellidos||'')).trim())+'" '+bloq+'></div><div><label>Género</label><select id="pt_gen" '+bloq+'><option value="">—</option><option>Masculino</option><option>Femenino</option><option>Otro</option></select></div>'+
+    '<div class="grid3"><div><label>Número de cédula</label><input id="pt_ced" value="'+esc(d.cedula||'')+'" '+(ced?'readonly':(esContr?'readonly':''))+'></div><div><label>Nombres y apellidos</label><input id="pt_nom" value="'+esc(((d.nombres||'')+' '+(d.apellidos||'')).trim())+'" '+bloq+'></div><div><label>Género</label><select id="pt_gen" '+bloq+'><option value="">—</option><option>Masculino</option><option>Femenino</option><option>Otro</option></select></div>'+
     '<div><label>Fecha de nacimiento</label><input type="date" id="pt_fnac" value="'+esc(d.fecha_nacimiento||'')+'" '+bloq+'></div><div><label>Tipo de sangre / RH</label><input id="pt_rh" value="'+esc(d.rh||'')+'" placeholder="O+" '+bloq+'></div><div><label>Correo electrónico</label><input id="pt_cor" value="'+esc(d.correo||'')+'" '+bloq+'></div>'+
     '<div><label>Teléfono celular</label><input id="pt_cel" value="'+esc(d.celular||'')+'" '+bloq+'></div><div><label>Cargo</label><input id="pt_car" value="'+esc(d.cargo||'')+'" '+bloq+'></div><div><label>EPS</label><input id="pt_eps" value="'+esc(d.eps||'')+'" '+bloq+'></div>'+
     '<div><label>ARL</label><input id="pt_arl" value="'+esc(d.arl||'')+'" '+bloq+'></div><div><label>AFP</label><input id="pt_afp" value="'+esc(d.afp||'')+'" '+bloq+'></div><div><label>Alergias / condiciones médicas</label><input id="pt_alg" value="'+esc(d.alergias||'')+'" '+bloq+'></div>'+
     '<div style="grid-column:1/3;"><label>Contacto de emergencia: nombre y parentesco</label><input id="pt_en" value="'+esc(d.emerg_nombre||'')+'" '+bloq+'></div><div><label>Contacto emergencia: número</label><input id="pt_et" value="'+esc(d.emerg_telefono||'')+'" '+bloq+'></div>'+
     '<div><label>Contratista</label><select id="pt_con" '+bloq+'>'+optsContr+'</select></div>'+
     '<div><label>Estado</label><select id="pt_est"><option value="true" '+(d.activo!==false?'selected':'')+'>Activo</option><option value="false" '+(d.activo===false?'selected':'')+'>Inactivo</option></select></div></div>'+
-    '<div class="card" style="margin-top:14px;border:1.5px solid #F5C0C0;"><div style="font-size:12px;font-weight:700;color:#991B1B;margin-bottom:8px;">Actividad de conducción</div>'+
-    '<label style="display:flex;align-items:center;gap:7px;font-weight:400;text-transform:none;letter-spacing:0;font-size:12px;"><input type="checkbox" id="pt_conduce" '+(conduceOn?'checked':'')+' style="width:auto;" onchange="document.getElementById(\'condDetalle\').style.display=this.checked?\'block\':\'none\'"> Realiza actividades de conducción</label>'+
-    condBloque+'</div>'+
+    '<div class="card" style="margin-top:14px;border:1.5px solid #F5C0C0;"><div style="font-size:12px;font-weight:700;color:#991B1B;margin-bottom:8px;">Condición vigente por persona</div><div style="font-size:10px;color:var(--slate);margin-bottom:8px;">Marque lo que aplica; al marcar, indique la fecha de vencimiento cuando corresponda.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;">'+condHtml+'</div></div>'+
     '<div id="pt_err" style="color:var(--danger);font-size:11px;margin-top:8px;"></div>'+
     '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarPersonaOT('+(ced?"'"+ced+"'":'null')+')">💾 Guardar</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
   if(ced){ if(d.genero)document.getElementById('pt_gen').value=d.genero; }
@@ -410,7 +421,14 @@ async function guardarPersonaOT(ced){
   // Admin/Gestor: guardado completo
   const nomComp=document.getElementById('pt_nom').value.trim();
   const partes=nomComp.split(' ');
-  const chequeo={conduccion:{aplica:conduce}};
+  const chequeo={};
+  CONDICIONES.forEach(co=>{
+    if(co.k==='conduccion'){ chequeo.conduccion={aplica:conduce}; return; }
+    const el=document.getElementById('cond_'+co.k);
+    const chk=el?el.checked:false;
+    if(co.fecha){ const v=document.getElementById('cond_venc_'+co.k); chequeo[co.k]={aplica:chk,vence:chk&&v?(v.value||null):null}; }
+    else { chequeo[co.k]={aplica:chk}; }
+  });
   const row={
     cedula:document.getElementById('pt_ced').value.trim(),
     contratista_nit:document.getElementById('pt_con').value||contratistaActual||null,
