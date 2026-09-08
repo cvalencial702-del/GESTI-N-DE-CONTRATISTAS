@@ -139,16 +139,16 @@ async function hacerLogin(){
     if(!clave){ document.getElementById('loginError').textContent='Ingrese su NIT sin dígito de verificación.'; return; }
     const nitBuscar=clave.replace(/[^0-9]/g,''); // solo números
     try{
-      const {data}=await sb.from('gc_contratistas').select('nit,nombre').limit(2000);
+      const {data,error}=await sb.from('gc_contratistas').select('nit,razon_social').limit(2000);
+      if(error){ document.getElementById('loginError').textContent='Error consultando contratistas: '+error.message; return; }
       const lista=data||[];
       // Coincidencia: el NIT guardado, sin dígito de verificación, igual a lo ingresado
       const match=lista.find(c=>{
         const nitBase=String(c.nit||'').replace(/[^0-9]/g,'');
-        // Comparar contra el NIT completo o contra el NIT sin el último dígito
         return nitBase===nitBuscar || nitBase.slice(0,-1)===nitBuscar;
       });
       if(!match){ document.getElementById('loginError').textContent='NIT no encontrado. Verifique el número (sin dígito de verificación).'; return; }
-      sesion={rol,contratista_nit:match.nit,contratista_nombre:match.nombre};
+      sesion={rol,contratista_nit:match.nit,contratista_nombre:match.razon_social};
     }catch(e){ document.getElementById('loginError').textContent='Error validando el NIT: '+e.message; return; }
   } else {
     if(clave!==CLAVES[rol]){ document.getElementById('loginError').textContent='Clave incorrecta para el perfil seleccionado.'; return; }
