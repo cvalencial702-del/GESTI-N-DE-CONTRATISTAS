@@ -552,11 +552,14 @@ RENDER.personal=async function(){
     '<div class="toolbar"><input id="fPers" placeholder="Buscar por nombre o cédula" style="max-width:280px;" oninput="RENDER.personal.filtrar()"><button class="btn btn-p" onclick="formTrabajador()">＋ Agregar persona</button></div>'+
     '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Cargo</th><th>Contratista</th><th>Conduce</th><th>Estado</th><th></th></tr></thead><tbody id="persBody"></tbody></table></div>';
   const {data}=await sb.from('gc_trabajadores').select('*').order('created_at',{ascending:false});
+  const {data:contr}=await sb.from('gc_contratistas').select('nit,razon_social');
+  RENDER.personal._contr={}; (contr||[]).forEach(x=>RENDER.personal._contr[x.nit]=x.razon_social);
   RENDER.personal._data=data||[];
   RENDER.personal.pintar(RENDER.personal._data);
 };
+RENDER.personal.razon=function(nit){ return (RENDER.personal._contr&&RENDER.personal._contr[nit])||nit||'—'; };
 RENDER.personal.pintar=function(rows){
-  document.getElementById('persBody').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.cedula)+'</td><td style="font-weight:600;">'+esc((r.nombres||'')+' '+(r.apellidos||''))+'</td><td>'+esc(r.cargo||'—')+'</td><td>'+esc(r.contratista_nit||'—')+'</td><td>'+(r.conduce?'<span class="pill pill-warn">Sí</span>':'<span class="pill pill-gray">No</span>')+'</td><td>'+(r.activo?'<span class="pill pill-ok">Activo</span>':'<span class="pill pill-gray">Inactivo</span>')+'</td><td><button class="btn-sm" onclick="formTrabajador(\''+r.cedula+'\')">✏️</button></td></tr>').join(''):'<tr><td colspan="7" style="text-align:center;color:var(--slate);padding:20px;">Sin personal</td></tr>';
+  document.getElementById('persBody').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.cedula)+'</td><td style="font-weight:600;">'+esc((r.nombres||'')+' '+(r.apellidos||''))+'</td><td>'+esc(r.cargo||'—')+'</td><td>'+esc(RENDER.personal.razon(r.contratista_nit))+'</td><td>'+(r.conduce?'<span class="pill pill-warn">Sí</span>':'<span class="pill pill-gray">No</span>')+'</td><td>'+(r.activo?'<span class="pill pill-ok">Activo</span>':'<span class="pill pill-gray">Inactivo</span>')+'</td><td><button class="btn-sm" onclick="formTrabajador(\''+r.cedula+'\')">✏️</button></td></tr>').join(''):'<tr><td colspan="7" style="text-align:center;color:var(--slate);padding:20px;">Sin personal</td></tr>';
 };
 RENDER.personal.filtrar=function(){
   const q=(document.getElementById('fPers').value||'').toLowerCase();
@@ -570,7 +573,7 @@ async function formTrabajador(ced){
   const saludHtml=verSalud?('<div class="sec-sub" style="margin-top:14px;color:var(--danger);font-weight:600;">Datos de salud</div><div class="grid3"><div><label>RH</label><input id="t_rh" value="'+esc(d.rh||'')+'"></div><div><label>Alergias</label><input id="t_alg" value="'+esc(d.alergias||'')+'"></div><div><label>Restricciones</label><input id="t_res" value="'+esc(d.restricciones||'')+'"></div></div>'):'<div class="card" style="margin-top:12px;background:#F8FAFC;font-size:11px;color:var(--slate);">🔒 Los datos de salud solo son visibles y editables por perfiles HSEQ.</div>';
   abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:12px;">'+(ced?'Editar':'Agregar')+' trabajador</div>'+
     '<div class="grid3"><div><label>Cédula</label><input id="t_ced" value="'+esc(d.cedula||'')+'" '+(ced?'readonly':'')+'></div><div><label>Nombres</label><input id="t_nom" value="'+esc(d.nombres||'')+'"></div><div><label>Apellidos</label><input id="t_ape" value="'+esc(d.apellidos||'')+'"></div>'+
-    '<div><label>Contratista</label><select id="t_con"><option value="">—</option>'+optsC+'</select></div><div><label>Cargo</label><input id="t_car" value="'+esc(d.cargo||'')+'"></div><div><label>N° contacto</label><input id="t_cel" value="'+esc(d.celular||'')+'"></div>'+
+    '<div><label>Contratista <span class="req">*</span></label><select id="t_con"><option value="">—</option>'+optsC+'</select></div><div><label>Cargo</label><input id="t_car" value="'+esc(d.cargo||'')+'"></div><div><label>N° contacto</label><input id="t_cel" value="'+esc(d.celular||'')+'"></div>'+
     '<div><label>Género</label><select id="t_gen"><option value="">—</option><option>Masculino</option><option>Femenino</option><option>Otro</option></select></div><div><label>Correo</label><input id="t_cor" value="'+esc(d.correo||'')+'"></div><div><label>¿Conduce para el proyecto?</label><select id="t_cond"><option value="false">No</option><option value="true">Sí</option></select></div>'+
     '<div><label>EPS</label><input id="t_eps" value="'+esc(d.eps||'')+'"></div><div><label>ARL</label><input id="t_arl" value="'+esc(d.arl||'')+'"></div><div><label>AFP</label><input id="t_afp" value="'+esc(d.afp||'')+'"></div>'+
     '<div><label>Contacto emergencia</label><input id="t_en" value="'+esc(d.emerg_nombre||'')+'"></div><div><label>Parentesco</label><input id="t_ep" value="'+esc(d.emerg_parentesco||'')+'"></div><div><label>Tel. emergencia</label><input id="t_et" value="'+esc(d.emerg_telefono||'')+'"></div>'+
@@ -584,6 +587,7 @@ async function guardarTrabajador(ced){
   const row={cedula:g('t_ced'),nombres:g('t_nom'),apellidos:g('t_ape'),contratista_nit:g('t_con')||null,cargo:g('t_car'),celular:g('t_cel'),genero:g('t_gen')||null,correo:g('t_cor'),conduce:g('t_cond')==='true',eps:g('t_eps'),arl:g('t_arl'),afp:g('t_afp'),emerg_nombre:g('t_en'),emerg_parentesco:g('t_ep'),emerg_telefono:g('t_et'),fecha_ingreso:g('t_fi')||null,activo:g('t_act')==='true'};
   if(puede('ver_salud')){ row.rh=g('t_rh'); row.alergias=g('t_alg'); row.restricciones=g('t_res'); }
   if(!row.cedula||!row.nombres||!row.apellidos){alert('Cédula, nombres y apellidos son obligatorios');return;}
+  if(!row.contratista_nit){alert('Debe asociar la persona a un contratista (razón social).');return;}
   try{ if(ced){await sb.from('gc_trabajadores').update(row).eq('cedula',ced);}else{const{error}=await sb.from('gc_trabajadores').insert(row);if(error)throw error;} cerrarModal(); RENDER.personal(); }catch(e){alert('Error: '+e.message);}
 }
 
