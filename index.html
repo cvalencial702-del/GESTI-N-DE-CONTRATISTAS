@@ -520,7 +520,16 @@ async function guardarPersonaOT(ced){
   if(!row.contratista_nit){ if(err)err.textContent='Debe asignar la persona a un contratista (razón social).'; return; }
   try{
     if(ced){await sb.from('gc_trabajadores').update(row).eq('cedula',ced);}
-    else{const{error}=await sb.from('gc_trabajadores').insert(row);if(error)throw error;}
+    else{
+      // Verificar si la cédula ya existe para actualizar en vez de fallar
+      const {data:existe}=await sb.from('gc_trabajadores').select('cedula').eq('cedula',row.cedula).limit(1);
+      if(existe&&existe.length){
+        if(!confirm('La cédula '+row.cedula+' ya está registrada. ¿Desea actualizar sus datos y asociarla a esta orden?')){ return; }
+        const {error}=await sb.from('gc_trabajadores').update(row).eq('cedula',row.cedula); if(error)throw error;
+      } else {
+        const {error}=await sb.from('gc_trabajadores').insert(row); if(error)throw error;
+      }
+    }
     cerrarModal(); if(typeof cargarPersonalOT==='function')cargarPersonalOT(); if(RENDER.personal)RENDER.personal();
   }catch(e){alert('Error: '+e.message);}
 }
@@ -687,7 +696,18 @@ async function guardarTrabajador(ced){
   if(puede('ver_salud')){ row.rh=g('t_rh'); row.alergias=g('t_alg'); row.restricciones=g('t_res'); }
   if(!row.cedula||!row.nombres||!row.apellidos){alert('Cédula, nombres y apellidos son obligatorios');return;}
   if(!row.contratista_nit){alert('Debe asociar la persona a un contratista (razón social).');return;}
-  try{ if(ced){await sb.from('gc_trabajadores').update(row).eq('cedula',ced);}else{const{error}=await sb.from('gc_trabajadores').insert(row);if(error)throw error;} cerrarModal(); if(contratistaActual&&document.getElementById('persCBody')){ verPersonalContratista(contratistaActual); } else { RENDER.personal(); } }catch(e){alert('Error: '+e.message);}
+  try{
+    if(ced){await sb.from('gc_trabajadores').update(row).eq('cedula',ced);}
+    else{
+      const {data:existe}=await sb.from('gc_trabajadores').select('cedula').eq('cedula',row.cedula).limit(1);
+      if(existe&&existe.length){
+        if(!confirm('La cédula '+row.cedula+' ya está registrada. ¿Desea actualizar sus datos?')){ return; }
+        const {error}=await sb.from('gc_trabajadores').update(row).eq('cedula',row.cedula); if(error)throw error;
+      } else {
+        const {error}=await sb.from('gc_trabajadores').insert(row); if(error)throw error;
+      }
+    }
+    cerrarModal(); if(contratistaActual&&document.getElementById('persCBody')){ verPersonalContratista(contratistaActual); } else { RENDER.personal(); } }catch(e){alert('Error: '+e.message);}
 }
 
 // ===================== REPORTE DIARIO =====================
