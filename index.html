@@ -284,9 +284,32 @@ async function verProyectosOT(nit){
   RENDER._proyectos=proy.data||[];
   c.innerHTML='<button class="btn-sm" onclick="irA(\'contratistas\')">← Volver a contratistas</button>'+
     '<div class="sec-title" style="margin-top:10px;">'+esc(cont.razon_social||nit)+'</div><div class="sec-sub">NIT '+esc(nit)+' · asocie uno o varios proyectos, cada uno con su orden de trabajo</div>'+
-    '<div class="toolbar"><button class="btn btn-p" onclick="formOrden()">＋ Asociar proyecto / orden de trabajo</button></div>'+
+    '<div class="toolbar"><button class="btn btn-p" onclick="formOrden()">＋ Asociar proyecto / orden de trabajo</button> <button class="btn btn-g" onclick="verPersonalContratista(\''+esc(nit)+'\')">👥 Control de personal de esta empresa</button></div>'+
     '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Orden de trabajo</th><th>Proyecto</th><th>Actividad</th><th>Inicio</th><th>Terminación</th><th>Estado</th><th></th></tr></thead><tbody id="ordBody"></tbody></table></div>';
   document.getElementById('ordBody').innerHTML=(ord.data&&ord.data.length)?ord.data.map(o=>'<tr><td style="font-weight:600;">'+esc(o.codigo)+'</td><td>'+esc(proyMap[o.proyecto_id]||'—')+'</td><td style="font-size:11px;">'+esc(o.actividad||'—')+'</td><td>'+esc(o.fecha_inicio||'—')+'</td><td>'+esc(o.fecha_terminacion||'—')+'</td><td><span class="pill pill-gray">'+esc(o.estado||'—')+'</span></td><td style="white-space:nowrap;"><button class="btn-sm" onclick="registrarPersonalOT(\''+esc(o.codigo)+'\',\''+(o.proyecto_id||'')+'\')">👥 Personal</button> <button class="btn-sm" onclick="formOrden(\''+esc(o.codigo)+'\')">✏️</button></td></tr>').join(''):'<tr><td colspan="7" style="text-align:center;color:var(--slate);padding:20px;">Sin proyectos asociados. Use el botón de arriba.</td></tr>';
+}
+async function verPersonalContratista(nit){
+  contratistaActual=nit;
+  const c=document.getElementById('content');
+  const [ct,per]=await Promise.all([
+    sb.from('gc_contratistas').select('razon_social').eq('nit',nit).limit(1),
+    sb.from('gc_trabajadores').select('*').eq('contratista_nit',nit).order('created_at',{ascending:false})
+  ]);
+  const razon=(ct.data&&ct.data[0]&&ct.data[0].razon_social)||nit;
+  const rows=per.data||[];
+  c.innerHTML='<button class="btn-sm" onclick="verProyectosOT(\''+esc(nit)+'\')">← Volver a proyectos/OT</button>'+
+    '<div class="sec-title" style="margin-top:10px;">Control de personal · '+esc(razon)+'</div><div class="sec-sub">Personal asociado a esta empresa · '+rows.length+' persona(s)</div>'+
+    '<div class="toolbar"><input id="fPersC" placeholder="Buscar por nombre o cédula" style="max-width:280px;" oninput="filtrarPersonalContr()"><button class="btn btn-p" onclick="formTrabajador(null,\''+esc(nit)+'\')">＋ Agregar persona a esta empresa</button></div>'+
+    '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Cargo</th><th>Conduce</th><th>Estado</th><th></th></tr></thead><tbody id="persCBody"></tbody></table></div>';
+  window._persContr=rows;
+  pintarPersonalContr(rows);
+}
+function pintarPersonalContr(rows){
+  document.getElementById('persCBody').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.cedula)+'</td><td style="font-weight:600;">'+esc((r.nombres||'')+' '+(r.apellidos||''))+'</td><td>'+esc(r.cargo||'—')+'</td><td>'+(r.conduce?'<span class="pill pill-warn">Sí</span>':'<span class="pill pill-gray">No</span>')+'</td><td>'+(r.activo?'<span class="pill pill-ok">Activo</span>':'<span class="pill pill-gray">Inactivo</span>')+'</td><td><button class="btn-sm" onclick="formTrabajador(\''+r.cedula+'\',\''+esc(contratistaActual)+'\')">✏️</button></td></tr>').join(''):'<tr><td colspan="6" style="text-align:center;color:var(--slate);padding:20px;">Sin personal en esta empresa. Use «Agregar persona».</td></tr>';
+}
+function filtrarPersonalContr(){
+  const q=(document.getElementById('fPersC').value||'').toLowerCase();
+  pintarPersonalContr((window._persContr||[]).filter(r=>((r.nombres||'')+' '+(r.apellidos||'')).toLowerCase().includes(q)||(r.cedula||'').includes(q)));
 }
 function formOrden(codigo){
   const proyectos=RENDER._proyectos||[];
@@ -548,95 +571,153 @@ RENDER.permiso_alturas=function(){
 RENDER.personal=async function(){
   const c=document.getElementById('content');
   const verSalud=puede('ver_salud');
-  c.innerHTML='<div class="sec-title">Control de personal</div><div class="sec-sub">Trabajadores de los contratistas'+(verSalud?'':' · datos de salud restringidos a HSEQ')+'</div>'+
-    '<div class="toolbar"><input id="fPers" placeholder="Buscar por nombre o cédula" style="max-width:280px;" oninput="RENDER.personal.filtrar()"><button class="btn btn-p" onclick="formTrabajador()">＋ Agregar persona</button></div>'+
-    '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Cargo</th><th>Contratista</th><th>Conduce</th><th>Estado</th><th></th></tr></thead><tbody id="persBody"></tbody></table></div>';
-  const {data}=await sb.from('gc_trabajadores').select('*').order('created_at',{ascending:false});
+  const esContr=(sesion.rol==='contratista');
+  const colContr=esContr?'':'<th>Contratista</th>'; // el contratista no ve la columna de razón social
+  c.innerHTML='<div class="sec-title">Control de personal</div><div class="sec-sub">'+(esContr?'Personal de su empresa':'Trabajadores de los contratistas')+(verSalud?'':' · datos de salud restringidos a HSEQ')+'</div>'+
+    '<div class="toolbar"><input id="fPers" placeholder="Buscar por nombre o cédula" style="max-width:280px;" oninput="RENDER.personal.filtrar()"><button class="btn btn-p" onclick="formTrabajador(null'+(esContr&&sesion.contratista_nit?",'"+sesion.contratista_nit+"'":'')+')">＋ Agregar persona</button></div>'+
+    '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Cargo</th>'+colContr+'<th>Conduce</th><th>Estado</th><th></th></tr></thead><tbody id="persBody"></tbody></table></div>';
+  let q=sb.from('gc_trabajadores').select('*').order('created_at',{ascending:false});
+  // Si es contratista, solo su personal
+  if(esContr&&sesion.contratista_nit){ q=sb.from('gc_trabajadores').select('*').eq('contratista_nit',sesion.contratista_nit).order('created_at',{ascending:false}); }
+  const {data}=await q;
   const {data:contr}=await sb.from('gc_contratistas').select('nit,razon_social');
   RENDER.personal._contr={}; (contr||[]).forEach(x=>RENDER.personal._contr[x.nit]=x.razon_social);
+  RENDER.personal._esContr=esContr;
   RENDER.personal._data=data||[];
   RENDER.personal.pintar(RENDER.personal._data);
 };
 RENDER.personal.razon=function(nit){ return (RENDER.personal._contr&&RENDER.personal._contr[nit])||nit||'—'; };
 RENDER.personal.pintar=function(rows){
-  document.getElementById('persBody').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.cedula)+'</td><td style="font-weight:600;">'+esc((r.nombres||'')+' '+(r.apellidos||''))+'</td><td>'+esc(r.cargo||'—')+'</td><td>'+esc(RENDER.personal.razon(r.contratista_nit))+'</td><td>'+(r.conduce?'<span class="pill pill-warn">Sí</span>':'<span class="pill pill-gray">No</span>')+'</td><td>'+(r.activo?'<span class="pill pill-ok">Activo</span>':'<span class="pill pill-gray">Inactivo</span>')+'</td><td><button class="btn-sm" onclick="formTrabajador(\''+r.cedula+'\')">✏️</button></td></tr>').join(''):'<tr><td colspan="7" style="text-align:center;color:var(--slate);padding:20px;">Sin personal</td></tr>';
+  const esContr=RENDER.personal._esContr;
+  document.getElementById('persBody').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.cedula)+'</td><td style="font-weight:600;">'+esc((r.nombres||'')+' '+(r.apellidos||''))+'</td><td>'+esc(r.cargo||'—')+'</td>'+(esContr?'':'<td>'+esc(RENDER.personal.razon(r.contratista_nit))+'</td>')+'<td>'+(r.conduce?'<span class="pill pill-warn">Sí</span>':'<span class="pill pill-gray">No</span>')+'</td><td>'+(r.activo?'<span class="pill pill-ok">Activo</span>':'<span class="pill pill-gray">Inactivo</span>')+'</td><td><button class="btn-sm" onclick="formTrabajador(\''+r.cedula+'\')">✏️</button></td></tr>').join(''):'<tr><td colspan="7" style="text-align:center;color:var(--slate);padding:20px;">Sin personal</td></tr>';
 };
 RENDER.personal.filtrar=function(){
   const q=(document.getElementById('fPers').value||'').toLowerCase();
   RENDER.personal.pintar(RENDER.personal._data.filter(r=>((r.nombres||'')+' '+(r.apellidos||'')).toLowerCase().includes(q)||(r.cedula||'').includes(q)));
 };
-async function formTrabajador(ced){
-  const d=ced?RENDER.personal._data.find(x=>x.cedula===ced):{};
+async function recargarProyectosTrab(nit){
+  const sel=document.getElementById('t_proy'); if(!sel)return;
+  sel.innerHTML='<option value="">— Seleccione proyecto —</option>';
+  if(!nit)return;
+  const {data:ords}=await sb.from('gc_ordenes').select('proyecto_id').eq('contratista_nit',nit);
+  const ids=[...new Set((ords||[]).map(o=>o.proyecto_id).filter(Boolean))];
+  if(ids.length){
+    const {data:prs}=await sb.from('gc_proyectos').select('id,nombre').in('id',ids).order('nombre');
+    sel.innerHTML+=(prs||[]).map(p=>'<option value="'+p.id+'">'+esc(p.nombre)+'</option>').join('');
+  }
+}
+async function formTrabajador(ced,nitFijo){
+  // Buscar datos de la persona en cualquiera de las dos listas (personal general o personal del contratista)
+  let d={};
+  if(ced){ d=(RENDER.personal._data||[]).find(x=>x.cedula===ced) || (window._persContr||[]).find(x=>x.cedula===ced) || {}; }
   const {data:contr}=await sb.from('gc_contratistas').select('nit,razon_social');
   const optsC=(contr||[]).map(x=>'<option value="'+x.nit+'">'+esc(x.razon_social)+'</option>').join('');
+  const nitPre=nitFijo||d.contratista_nit||'';
+  // Proyectos activos del contratista (vía sus órdenes de trabajo)
+  let optsProy='<option value="">— Seleccione proyecto —</option>';
+  if(nitPre){
+    const {data:ords}=await sb.from('gc_ordenes').select('proyecto_id').eq('contratista_nit',nitPre);
+    const ids=[...new Set((ords||[]).map(o=>o.proyecto_id).filter(Boolean))];
+    if(ids.length){
+      const {data:prs}=await sb.from('gc_proyectos').select('id,nombre').in('id',ids).order('nombre');
+      optsProy+=(prs||[]).map(p=>'<option value="'+p.id+'" '+(d.proyecto_id===p.id?'selected':'')+'>'+esc(p.nombre)+'</option>').join('');
+    }
+  }
   const verSalud=puede('ver_salud');
   const saludHtml=verSalud?('<div class="sec-sub" style="margin-top:14px;color:var(--danger);font-weight:600;">Datos de salud</div><div class="grid3"><div><label>RH</label><input id="t_rh" value="'+esc(d.rh||'')+'"></div><div><label>Alergias</label><input id="t_alg" value="'+esc(d.alergias||'')+'"></div><div><label>Restricciones</label><input id="t_res" value="'+esc(d.restricciones||'')+'"></div></div>'):'<div class="card" style="margin-top:12px;background:#F8FAFC;font-size:11px;color:var(--slate);">🔒 Los datos de salud solo son visibles y editables por perfiles HSEQ.</div>';
   abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:12px;">'+(ced?'Editar':'Agregar')+' trabajador</div>'+
     '<div class="grid3"><div><label>Cédula</label><input id="t_ced" value="'+esc(d.cedula||'')+'" '+(ced?'readonly':'')+'></div><div><label>Nombres</label><input id="t_nom" value="'+esc(d.nombres||'')+'"></div><div><label>Apellidos</label><input id="t_ape" value="'+esc(d.apellidos||'')+'"></div>'+
-    '<div><label>Contratista <span class="req">*</span></label><select id="t_con"><option value="">—</option>'+optsC+'</select></div><div><label>Cargo</label><input id="t_car" value="'+esc(d.cargo||'')+'"></div><div><label>N° contacto</label><input id="t_cel" value="'+esc(d.celular||'')+'"></div>'+
+    '<div><label>Contratista <span class="req">*</span></label><select id="t_con" onchange="recargarProyectosTrab(this.value)"><option value="">—</option>'+optsC+'</select></div><div><label>Proyecto</label><select id="t_proy">'+optsProy+'</select></div><div><label>Cargo</label><input id="t_car" value="'+esc(d.cargo||'')+'"></div>'+
+    '<div><label>N° contacto</label><input id="t_cel" value="'+esc(d.celular||'')+'"></div>'+
     '<div><label>Género</label><select id="t_gen"><option value="">—</option><option>Masculino</option><option>Femenino</option><option>Otro</option></select></div><div><label>Correo</label><input id="t_cor" value="'+esc(d.correo||'')+'"></div><div><label>¿Conduce para el proyecto?</label><select id="t_cond"><option value="false">No</option><option value="true">Sí</option></select></div>'+
     '<div><label>EPS</label><input id="t_eps" value="'+esc(d.eps||'')+'"></div><div><label>ARL</label><input id="t_arl" value="'+esc(d.arl||'')+'"></div><div><label>AFP</label><input id="t_afp" value="'+esc(d.afp||'')+'"></div>'+
     '<div><label>Contacto emergencia</label><input id="t_en" value="'+esc(d.emerg_nombre||'')+'"></div><div><label>Parentesco</label><input id="t_ep" value="'+esc(d.emerg_parentesco||'')+'"></div><div><label>Tel. emergencia</label><input id="t_et" value="'+esc(d.emerg_telefono||'')+'"></div>'+
     '<div><label>Fecha ingreso</label><input type="date" id="t_fi" value="'+esc(d.fecha_ingreso||'')+'"></div><div><label>Estado</label><select id="t_act"><option value="true">Activo</option><option value="false">Inactivo</option></select></div></div>'+
     saludHtml+
     '<div style="display:flex;gap:8px;margin-top:16px;"><button class="btn btn-p" onclick="guardarTrabajador('+(ced?"'"+ced+"'":'null')+')">💾 Guardar</button><button class="btn btn-g" onclick="cerrarModal()">Cancelar</button></div>');
-  if(ced){ if(d.genero)document.getElementById('t_gen').value=d.genero; if(d.contratista_nit)document.getElementById('t_con').value=d.contratista_nit; document.getElementById('t_cond').value=d.conduce?'true':'false'; document.getElementById('t_act').value=d.activo?'true':'false'; }
+  // Preseleccionar el contratista (por nit fijo o el de la persona)
+  if(nitPre){ const sc=document.getElementById('t_con'); if(sc){ sc.value=nitPre; if(nitFijo){ sc.disabled=true; } } }
+  if(ced){ if(d.genero)document.getElementById('t_gen').value=d.genero; document.getElementById('t_cond').value=d.conduce?'true':'false'; document.getElementById('t_act').value=d.activo?'true':'false'; }
 }
 async function guardarTrabajador(ced){
   const g=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};
-  const row={cedula:g('t_ced'),nombres:g('t_nom'),apellidos:g('t_ape'),contratista_nit:g('t_con')||null,cargo:g('t_car'),celular:g('t_cel'),genero:g('t_gen')||null,correo:g('t_cor'),conduce:g('t_cond')==='true',eps:g('t_eps'),arl:g('t_arl'),afp:g('t_afp'),emerg_nombre:g('t_en'),emerg_parentesco:g('t_ep'),emerg_telefono:g('t_et'),fecha_ingreso:g('t_fi')||null,activo:g('t_act')==='true'};
+  const gv=id=>{const e=document.getElementById(id);return e?e.value:'';}; // lee incluso si disabled
+  const row={cedula:g('t_ced'),nombres:g('t_nom'),apellidos:g('t_ape'),contratista_nit:gv('t_con')||null,proyecto_id:gv('t_proy')||null,cargo:g('t_car'),celular:g('t_cel'),genero:g('t_gen')||null,correo:g('t_cor'),conduce:g('t_cond')==='true',eps:g('t_eps'),arl:g('t_arl'),afp:g('t_afp'),emerg_nombre:g('t_en'),emerg_parentesco:g('t_ep'),emerg_telefono:g('t_et'),fecha_ingreso:g('t_fi')||null,activo:g('t_act')==='true'};
   if(puede('ver_salud')){ row.rh=g('t_rh'); row.alergias=g('t_alg'); row.restricciones=g('t_res'); }
   if(!row.cedula||!row.nombres||!row.apellidos){alert('Cédula, nombres y apellidos son obligatorios');return;}
   if(!row.contratista_nit){alert('Debe asociar la persona a un contratista (razón social).');return;}
-  try{ if(ced){await sb.from('gc_trabajadores').update(row).eq('cedula',ced);}else{const{error}=await sb.from('gc_trabajadores').insert(row);if(error)throw error;} cerrarModal(); RENDER.personal(); }catch(e){alert('Error: '+e.message);}
+  try{ if(ced){await sb.from('gc_trabajadores').update(row).eq('cedula',ced);}else{const{error}=await sb.from('gc_trabajadores').insert(row);if(error)throw error;} cerrarModal(); if(contratistaActual&&document.getElementById('persCBody')){ verPersonalContratista(contratistaActual); } else { RENDER.personal(); } }catch(e){alert('Error: '+e.message);}
 }
 
 // ===================== REPORTE DIARIO =====================
 RENDER.reporte=async function(){
   const c=document.getElementById('content');
+  const esContr=(sesion.rol==='contratista');
+  // Contratista: sin selector de razón social ni columnas de empresa
+  const razonCampo=esContr?'':'<div><label>Razón social (empresa)</label><select id="r_razon" onchange="pintarPersonalReporte()"></select></div>';
+  const colRazon=esContr?'':'<th>Razón social</th>';
+  const filtroRazonHoy=esContr?'':'<select id="r_filtroRazon" onchange="cargarReportesHoy()" style="max-width:220px;"><option value="">Todas las empresas</option></select>';
   c.innerHTML='<div class="sec-title">Reporte diario de personal</div><div class="sec-sub">Marca el personal activo en el proyecto para la fecha. Cada persona presente suma 8 HHT (editable).</div>'+
-    '<div class="card" style="margin-bottom:14px;"><div class="grid3"><div><label>Fecha</label><input type="date" id="r_fecha" value="'+hoyISO()+'"></div><div><label>Proyecto</label><select id="r_proy" onchange="pintarPersonalReporte()"></select></div><div><label>Razón social (empresa)</label><select id="r_razon" onchange="pintarPersonalReporte()"></select></div></div><div style="margin-top:12px;"><button class="btn btn-p" onclick="guardarReporte()">💾 Reportar seleccionados</button></div></div>'+
-    '<div class="card" style="padding:6px 16px 14px;"><div style="font-size:12px;font-weight:600;padding:8px 0;">Seleccione el personal presente</div><table><thead><tr><th style="width:40px;"></th><th>Cédula</th><th>Nombre</th><th>Razón social</th><th style="width:90px;">HHT</th></tr></thead><tbody id="repBody"></tbody></table></div>'+
-    '<div class="card" style="margin-top:14px;padding:6px 16px 14px;"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 0;"><div style="font-size:12px;font-weight:600;">Reportes de hoy · <span id="hhtHoy" style="color:var(--blue-d);"></span></div><select id="r_filtroRazon" onchange="cargarReportesHoy()" style="max-width:220px;"><option value="">Todas las empresas</option></select></div><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Proyecto</th><th>Razón social</th><th>HHT</th></tr></thead><tbody id="repHoy"></tbody></table></div>';
-  const [tr,pr,co]=await Promise.all([sb.from('gc_trabajadores').select('*').eq('activo',true),sb.from('gc_proyectos').select('*'),sb.from('gc_contratistas').select('nit,razon_social')]);
+    '<div class="card" style="margin-bottom:14px;"><div class="grid3"><div><label>Fecha</label><input type="date" id="r_fecha" value="'+hoyISO()+'"></div><div><label>Proyecto</label><select id="r_proy" onchange="pintarPersonalReporte()"></select></div>'+razonCampo+'</div><div style="margin-top:12px;"><button class="btn btn-p" onclick="guardarReporte()">💾 Reportar seleccionados</button></div></div>'+
+    '<div class="card" style="padding:6px 16px 14px;"><div style="font-size:12px;font-weight:600;padding:8px 0;">Seleccione el personal presente</div><table><thead><tr><th style="width:40px;"></th><th>Cédula</th><th>Nombre</th>'+colRazon+'<th style="width:90px;">HHT</th></tr></thead><tbody id="repBody"></tbody></table></div>'+
+    '<div class="card" style="margin-top:14px;padding:6px 16px 14px;"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 0;"><div style="font-size:12px;font-weight:600;">Reportes de hoy · <span id="hhtHoy" style="color:var(--blue-d);"></span></div>'+filtroRazonHoy+'</div><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Proyecto</th>'+colRazon+'<th>HHT</th></tr></thead><tbody id="repHoy"></tbody></table></div>';
+  // Proyectos: si es contratista, solo los de sus órdenes
+  let proyLista=[];
+  const [tr,co]=await Promise.all([sb.from('gc_trabajadores').select('*').eq('activo',true),sb.from('gc_contratistas').select('nit,razon_social')]);
+  if(esContr&&sesion.contratista_nit){
+    const {data:ords}=await sb.from('gc_ordenes').select('proyecto_id').eq('contratista_nit',sesion.contratista_nit);
+    const ids=[...new Set((ords||[]).map(o=>o.proyecto_id).filter(Boolean))];
+    if(ids.length){ const {data:pr}=await sb.from('gc_proyectos').select('*').in('id',ids); proyLista=pr||[]; }
+  } else {
+    const {data:pr}=await sb.from('gc_proyectos').select('*'); proyLista=pr||[];
+  }
   RENDER.reporte._trab=tr.data||[];
   RENDER.reporte._contr={}; (co.data||[]).forEach(x=>RENDER.reporte._contr[x.nit]=x.razon_social);
-  document.getElementById('r_proy').innerHTML='<option value="">— Seleccione un proyecto —</option>'+(pr.data||[]).map(p=>'<option value="'+p.id+'">'+esc(p.nombre)+'</option>').join('');
-  const optsRazon='<option value="">— Todas —</option>'+(co.data||[]).map(x=>'<option value="'+esc(x.nit)+'">'+esc(x.razon_social||x.nit)+'</option>').join('');
-  document.getElementById('r_razon').innerHTML=optsRazon;
-  document.getElementById('r_filtroRazon').innerHTML='<option value="">Todas las empresas</option>'+(co.data||[]).map(x=>'<option value="'+esc(x.nit)+'">'+esc(x.razon_social||x.nit)+'</option>').join('');
+  document.getElementById('r_proy').innerHTML='<option value="">— Seleccione un proyecto —</option>'+proyLista.map(p=>'<option value="'+p.id+'">'+esc(p.nombre)+'</option>').join('');
+  if(!esContr){
+    const optsRazon='<option value="">— Todas —</option>'+(co.data||[]).map(x=>'<option value="'+esc(x.nit)+'">'+esc(x.razon_social||x.nit)+'</option>').join('');
+    document.getElementById('r_razon').innerHTML=optsRazon;
+    document.getElementById('r_filtroRazon').innerHTML='<option value="">Todas las empresas</option>'+(co.data||[]).map(x=>'<option value="'+esc(x.nit)+'">'+esc(x.razon_social||x.nit)+'</option>').join('');
+  }
   pintarPersonalReporte(); cargarReportesHoy();
 };
 function razonDe(nit){ return (RENDER.reporte._contr&&RENDER.reporte._contr[nit])||nit||'—'; }
 function pintarPersonalReporte(){
+  const esContr=(sesion.rol==='contratista');
   const proySel=document.getElementById('r_proy')?document.getElementById('r_proy').value:'';
   const razonSel=document.getElementById('r_razon')?document.getElementById('r_razon').value:'';
   let lista=(RENDER.reporte._trab||[]).filter(t=>t.activo!==false);
+  // Contratista: solo su personal
+  if(esContr&&sesion.contratista_nit) lista=lista.filter(t=>t.contratista_nit===sesion.contratista_nit);
+  const colspan=esContr?4:5;
   if(!proySel){
-    document.getElementById('repBody').innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:16px;">Seleccione un proyecto para ver su personal asociado</td></tr>';
+    document.getElementById('repBody').innerHTML='<tr><td colspan="'+colspan+'" style="text-align:center;color:var(--slate);padding:16px;">Seleccione un proyecto para ver su personal asociado</td></tr>';
     return;
   }
   lista=lista.filter(t=>t.proyecto_id===proySel);
-  // Filtro adicional por razón social (empresa)
-  if(razonSel) lista=lista.filter(t=>t.contratista_nit===razonSel);
-  document.getElementById('repBody').innerHTML=lista.length?lista.map(t=>'<tr><td><input type="checkbox" style="width:auto;" value="'+t.cedula+'" class="repchk" data-nit="'+esc(t.contratista_nit||'')+'"></td><td>'+esc(t.cedula)+'</td><td>'+esc((t.nombres||'')+' '+(t.apellidos||''))+'</td><td>'+esc(razonDe(t.contratista_nit))+'</td><td><input type="number" min="0" step="0.5" value="8" class="rephht" data-ced="'+esc(t.cedula)+'" style="width:70px;"></td></tr>').join(''):'<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:16px;">Sin personal para el proyecto/empresa seleccionados</td></tr>';
+  if(!esContr&&razonSel) lista=lista.filter(t=>t.contratista_nit===razonSel);
+  document.getElementById('repBody').innerHTML=lista.length?lista.map(t=>'<tr><td><input type="checkbox" style="width:auto;" value="'+t.cedula+'" class="repchk" data-nit="'+esc(t.contratista_nit||'')+'"></td><td>'+esc(t.cedula)+'</td><td>'+esc((t.nombres||'')+' '+(t.apellidos||''))+'</td>'+(esContr?'':'<td>'+esc(razonDe(t.contratista_nit))+'</td>')+'<td><input type="number" min="0" step="0.5" value="8" class="rephht" data-ced="'+esc(t.cedula)+'" style="width:70px;"></td></tr>').join(''):'<tr><td colspan="'+colspan+'" style="text-align:center;color:var(--slate);padding:16px;">Sin personal para el proyecto seleccionado</td></tr>';
 }
 async function cargarReportesHoy(){
+  const esContr=(sesion.rol==='contratista');
   const {data}=await sb.from('gc_reporte_diario').select('*, gc_trabajadores(nombres,apellidos), gc_proyectos(nombre)').eq('fecha',hoyISO());
   let rows=data||[];
-  const filtro=document.getElementById('r_filtroRazon')?document.getElementById('r_filtroRazon').value:'';
-  if(filtro) rows=rows.filter(r=>r.contratista_nit===filtro);
+  if(esContr&&sesion.contratista_nit){ rows=rows.filter(r=>r.contratista_nit===sesion.contratista_nit); }
+  else { const filtro=document.getElementById('r_filtroRazon')?document.getElementById('r_filtroRazon').value:''; if(filtro) rows=rows.filter(r=>r.contratista_nit===filtro); }
   const totalHHT=rows.reduce((s,r)=>s+(Number(r.hht)||0),0);
+  const colspan=esContr?4:5;
   document.getElementById('hhtHoy').textContent='Total HHT hoy: '+totalHHT+' h ('+rows.length+' persona(s))';
-  document.getElementById('repHoy').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.cedula)+'</td><td>'+esc((r.gc_trabajadores?.nombres||'')+' '+(r.gc_trabajadores?.apellidos||''))+'</td><td>'+esc(r.gc_proyectos?.nombre||'—')+'</td><td>'+esc(razonDe(r.contratista_nit))+'</td><td>'+(Number(r.hht)||0)+' h</td></tr>').join(''):'<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:16px;">Sin reportes hoy</td></tr>';
+  document.getElementById('repHoy').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.cedula)+'</td><td>'+esc((r.gc_trabajadores?.nombres||'')+' '+(r.gc_trabajadores?.apellidos||''))+'</td><td>'+esc(r.gc_proyectos?.nombre||'—')+'</td>'+(esContr?'':'<td>'+esc(razonDe(r.contratista_nit))+'</td>')+'<td>'+(Number(r.hht)||0)+' h</td></tr>').join(''):'<tr><td colspan="'+colspan+'" style="text-align:center;color:var(--slate);padding:16px;">Sin reportes hoy</td></tr>';
 }
 async function guardarReporte(){
+  const esContr=(sesion.rol==='contratista');
   const fecha=document.getElementById('r_fecha').value, proy=document.getElementById('r_proy').value||null;
-  const razon=document.getElementById('r_razon').value||null; // razón social seleccionada (empresa del reporte)
+  const razon=esContr?(sesion.contratista_nit||null):(document.getElementById('r_razon')?document.getElementById('r_razon').value||null:null);
   const checks=[...document.querySelectorAll('.repchk:checked')];
   if(!checks.length){alert('Seleccione al menos una persona');return;}
+  if(!proy){alert('Seleccione un proyecto');return;}
   const hhtByCed={}; document.querySelectorAll('.rephht').forEach(i=>{ hhtByCed[i.dataset.ced]=Number(i.value)||0; });
-  const rows=checks.map(c=>({fecha,cedula:c.value,contratista_nit:c.dataset.nit||razon||null,proyecto_id:proy,frente_trabajo:razon?razonDe(razon):null,hht:hhtByCed[c.value]!=null?hhtByCed[c.value]:8}));
+  const rows=checks.map(c=>({fecha,cedula:c.value,contratista_nit:c.dataset.nit||razon||null,proyecto_id:proy,hht:hhtByCed[c.value]!=null?hhtByCed[c.value]:8}));
   try{ await sb.from('gc_reporte_diario').upsert(rows,{onConflict:'fecha,cedula,proyecto_id'}); alert('✅ '+checks.length+' persona(s) reportada(s)'); cargarReportesHoy(); document.querySelectorAll('.repchk:checked').forEach(c=>c.checked=false);}catch(e){alert('Error: '+e.message);}
 }
 
