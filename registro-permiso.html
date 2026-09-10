@@ -74,7 +74,7 @@ const CHEQUEO_ITEMS=[
   {g:'Condiciones del área',items:['Se conoce el plan de respuesta a emergencia del área','En el desarrollo de la tarea el trabajador es observado de forma continua','Las condiciones ambientales permiten el trabajo (viento, lluvia, tormenta eléctrica)']}
 ];
 let esAdmin=false, usuario='Usuario';
-let permisos=[], empleados=[], equipos=[], cfg={};
+let permisos=[], empleados=[], equipos=[], cfg={}, contratistas=[];
 let MODO_PUBLICO=true;
 const ARL_OPCIONES=['Colmena','Positiva','Sura','Bolívar','Colpatria','Equidad','La Previsora','Mapfre','Otras'];
 
@@ -96,6 +96,15 @@ function estadoSegSocial(){
 }
 
 function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function optsEmpresa(sel){
+  const razones=[...new Set((contratistas||[]).map(c=>(c.razon_social||'').trim()).filter(Boolean))];
+  const listaLPS = razones.filter(r=>/^lps/i.test(r));
+  const otras = razones.filter(r=>!/^lps/i.test(r)).sort();
+  let opciones = listaLPS.length ? listaLPS.concat(otras) : ['LPS'].concat(otras);
+  const valorSel = (sel && sel.trim()) ? sel.trim() : opciones[0];
+  if(valorSel && !opciones.includes(valorSel)) opciones.unshift(valorSel);
+  return opciones.map(r=>'<option value="'+esc(r)+'" '+(r===valorSel?'selected':'')+'>'+esc(r)+'</option>').join('');
+}
 function abrirModal(html,ancho){ document.getElementById('modalRoot').innerHTML='<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal" style="'+(ancho?'width:'+ancho+';':'')+'">'+html+'</div></div>'; }
 function cerrarModal(){ document.getElementById('modalRoot').innerHTML=''; }
 function hoy(){ return new Date().toISOString().slice(0,10); }
@@ -123,12 +132,14 @@ function bloquearAdmin(){ esAdmin=false; pintarAdminBtn(); renderListado(); }
 // ===== Carga =====
 async function cargar(){
   document.getElementById('logoTop').src=LOGO_LPS;
-  const [pm,emp,eq,cf]=await Promise.all([
+  const [pm,emp,eq,cf,co]=await Promise.all([
     sb.from('pta_permisos').select('*').order('created_at',{ascending:false}),
     sb.from('gc_trabajadores').select('cedula,nombres,apellidos,cargo,chequeo').order('apellidos'),
     sb.from('alt_equipos').select('id,codigo,tipo,tipo_otro,responsable,gestor').eq('estado','activo').order('codigo'),
-    sb.from('pta_config').select('*')
+    sb.from('pta_config').select('*'),
+    sb.from('gc_contratistas').select('nit,razon_social').order('razon_social')
   ]);
+  contratistas=co.data||[];
   permisos=pm.data||[]; empleados=emp.data||[]; equipos=eq.data||[];
   cfg={}; (cf.data||[]).forEach(r=>cfg[r.clave]=r.valor);
   esAdmin=true; window.MODO_PUBLICO=true; nuevoPermiso();
@@ -278,7 +289,7 @@ function formPermiso(){
     '<div id="wrapFin" style="'+(pAct.vigencia_tipo==='periodo'?'':'display:none;')+'"><label>Fecha fin</label><input type="date" id="p_fechafin" value="'+esc(pAct.fecha_fin||'')+'"></div>'+
     '<div><label>Hora inicio</label><input type="time" id="p_hini" value="'+esc(pAct.hora_inicio||'')+'"></div>'+
     '<div><label>Hora fin</label><input type="time" id="p_hfin" value="'+esc(pAct.hora_fin||'')+'"></div>'+
-    '<div><label>Empresa</label><input id="p_empresa" value="'+esc(pAct.empresa||cfg.empresa||'')+'"></div>'+
+    '<div><label>Empresa</label><select id="p_empresa">'+optsEmpresa(pAct.empresa)+'</select></div>'+
     '<div><label>Sitio / lugar <span class="req">*</span></label><input id="p_sitio" value="'+esc(pAct.sitio||'')+'"></div>'+
     '<div><label>Altura aproximada</label><input id="p_altura" value="'+esc(pAct.altura_aprox||'')+'" placeholder="Ej. 12 m"></div>'+
     '</div><div style="margin-top:10px;"><label>Descripción de la tarea <span class="req">*</span></label><textarea id="p_tarea" rows="2">'+esc(pAct.descripcion_tarea||'')+'</textarea></div></div></div>';
@@ -291,10 +302,14 @@ function formPermiso(){
 
   // Equipos
   html+='<div class="card"><div class="field-sec"><h3>Equipos / EPP contra caídas</h3>'+
-    '<div style="display:flex;gap:8px;align-items:end;margin-bottom:8px;"><div style="flex:1;"><label>Agregar equipo (de equipos registrados)</label><select id="p_seleq"><option value="">— Seleccione —</option>'+
-    equipos.map(e=>'<option value="'+e.id+'">'+esc(e.codigo)+' · '+esc(e.tipo==='Otros'?(e.tipo_otro||'Otros'):e.tipo)+(e.responsable?' · Resp: '+esc(e.responsable):'')+'</option>').join('')+'</select></div>'+
-    '<button class="btn-sm" onclick="agregarEquipo()">＋ Agregar</button></div>'+
-    '<div id="equipList"></div></div></div>';
+    '<div style="display:flex;gap:8px;align-items:end;margin-bottom:8px;flex-wrap:wrap;">'+
+    '<div style="flex:1;min-width:180px;"><label>Buscar por responsable</label><select id="p_selresp" onchange="filtrarEquiposPorResp()"><option value="">— Todos los responsables —</option>'+[...new Set(equipos.map(e=>(e.responsable||'').trim()).filter(Boolean))].sort().map(r=>'<option value="'+esc(r)+'">'+esc(r)+'</option>').join('')+'</select></div>'+
+    '<button class="btn-sm" onclick="agregarEquiposSeleccionados()">＋ Agregar seleccionados</button></div>'+
+    '<div style="font-size:11px;color:var(--slate);margin-bottom:4px;">Marque uno o varios equipos y presione «Agregar seleccionados».</div>'+
+    '<input id="p_buscareq" placeholder="🔍 Buscar por código, tipo o responsable…" oninput="filtrarEquiposPorResp()" style="margin-bottom:8px;">'+
+    '<div id="eqCheckList" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px;">'+
+    equipos.map(e=>{ const txtBusca=((e.codigo||'')+' '+(e.tipo==='Otros'?(e.tipo_otro||'Otros'):e.tipo)+' '+(e.responsable||'')).toLowerCase(); return '<label class="eqchkrow" data-resp="'+esc(e.responsable||'')+'" data-txt="'+esc(txtBusca)+'" style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid #F0F4F8;font-size:12px;cursor:pointer;"><input type="checkbox" class="eqchk" value="'+e.id+'" style="width:auto;"> <span style="font-family:ui-monospace,monospace;font-weight:600;">'+esc(e.codigo)+'</span> · '+esc(e.tipo==='Otros'?(e.tipo_otro||'Otros'):e.tipo)+(e.responsable?' · <span style="color:var(--slate);">Resp: '+esc(e.responsable)+'</span>':'')+'</label>'; }).join('')+'</div>'+
+    '<div id="equipList" style="margin-top:10px;"></div></div></div>';
 
   // Lista de chequeo
   html+='<div class="card"><div class="field-sec"><h3>Lista de chequeo (verificación previa)</h3><div id="chequeoList"></div></div></div>';
@@ -312,19 +327,31 @@ function formPermiso(){
     '<textarea id="p_obs" rows="3" placeholder="Observaciones generales del permiso">'+esc(pAct.observaciones_generales||'')+'</textarea></div></div>';
 
   // Roles y firmas
-  html+='<div class="card"><div class="field-sec"><h3>Roles y responsables</h3><div class="grid2">'+
-    '<div><label>Persona que autoriza — documento</label><div style="display:flex;gap:6px;"><input id="p_autoriza_ced" value="'+esc(pAct.autoriza_ced||'')+'" placeholder="Cédula"><button class="btn-sm" onclick="buscarRol(\'autoriza\')">🔍</button></div></div>'+
-    '<div><label>Nombre de quien autoriza <span class="req">*</span></label><input id="p_autoriza" value="'+esc(pAct.autoriza_nombre||'')+'"></div>'+
-    '<div><label>Cargo de quien autoriza</label><input id="p_autorizacargo" value="'+esc(pAct.autoriza_cargo||'')+'"></div>'+
+  html+='<div class="card"><div class="field-sec"><h3>Roles y responsables</h3>'+
+    '<div style="font-size:11px;color:var(--slate);margin-bottom:10px;">Busque por cédula (🔍) para traer nombre y cargo automáticamente, o escriba manualmente.</div>'+
+    '<div style="font-weight:600;font-size:12px;color:var(--navy);margin:4px 0 6px;">Persona que autoriza</div>'+
+    '<div class="grid3">'+
+    '<div><label>Documento</label><div style="display:flex;gap:6px;"><input id="p_autoriza_ced" value="'+esc(pAct.autoriza_ced||'')+'" placeholder="Cédula"><button class="btn-sm" onclick="buscarRol(\'autoriza\')">🔍</button></div></div>'+
+    '<div><label>Nombre <span class="req">*</span></label><input id="p_autoriza" value="'+esc(pAct.autoriza_nombre||'')+'"></div>'+
+    '<div><label>Cargo</label><input id="p_autorizacargo" value="'+esc(pAct.autoriza_cargo||'')+'"></div>'+
+    '</div>'+
+    '<div style="font-weight:600;font-size:12px;color:var(--navy);margin:12px 0 6px;">Coordinador de alturas</div>'+
+    '<div class="grid3">'+
+    '<div><label>Documento</label><div style="display:flex;gap:6px;"><input id="p_coordinador_ced" value="'+esc(pAct.coordinador_ced||'')+'" placeholder="Cédula"><button class="btn-sm" onclick="buscarRol(\'coordinador\')">🔍</button></div></div>'+
+    '<div><label>Nombre <span class="req">*</span></label><input id="p_coordinador" value="'+esc(pAct.coordinador_nombre||'')+'"></div>'+
+    '<div><label>Cargo</label><input id="p_coordcargo" value="'+esc(pAct.coordinador_cargo||'')+'"></div>'+
+    '</div>'+
+    '<div style="font-weight:600;font-size:12px;color:var(--navy);margin:12px 0 6px;">Responsable de emergencias</div>'+
+    '<div class="grid3">'+
+    '<div><label>Documento</label><div style="display:flex;gap:6px;"><input id="p_emergencias_ced" value="'+esc(pAct.emergencias_ced||'')+'" placeholder="Cédula"><button class="btn-sm" onclick="buscarRol(\'emergencias\')">🔍</button></div></div>'+
+    '<div><label>Nombre <span class="req">*</span></label><input id="p_emergencias" value="'+esc(pAct.emergencias_nombre||'')+'"></div>'+
+    '<div><label>Cargo</label><input id="p_emergcargo" value="'+esc(pAct.emergencias_cargo||'')+'"></div>'+
+    '</div>'+
+    '<div style="font-weight:600;font-size:12px;color:var(--navy);margin:12px 0 6px;">Ayudante de seguridad (si aplica)</div>'+
+    '<div class="grid3">'+
+    '<div><label>Documento</label><div style="display:flex;gap:6px;"><input id="p_ayudante_ced" value="'+esc(pAct.ayudante_ced||'')+'" placeholder="Cédula"><button class="btn-sm" onclick="buscarRol(\'ayudante\')">🔍</button></div></div>'+
+    '<div><label>Nombre</label><input id="p_ayudante" value="'+esc(pAct.ayudante_nombre||'')+'"></div>'+
     '<div></div>'+
-    '<div><label>Responsable de emergencias — documento</label><div style="display:flex;gap:6px;"><input id="p_emergencias_ced" value="'+esc(pAct.emergencias_ced||'')+'" placeholder="Cédula"><button class="btn-sm" onclick="buscarRol(\'emergencias\')">🔍</button></div></div>'+
-    '<div><label>Nombre responsable de emergencias <span class="req">*</span></label><input id="p_emergencias" value="'+esc(pAct.emergencias_nombre||'')+'"></div>'+
-    '<div><label>Coordinador alturas — documento</label><div style="display:flex;gap:6px;"><input id="p_coordinador_ced" value="'+esc(pAct.coordinador_ced||'')+'" placeholder="Cédula"><button class="btn-sm" onclick="buscarRol(\'coordinador\')">🔍</button></div></div>'+
-    '<div><label>Nombre del coordinador <span class="req">*</span></label><input id="p_coordinador" value="'+esc(pAct.coordinador_nombre||'')+'"></div>'+
-    '<div><label>Cargo del coordinador</label><input id="p_coordcargo" value="'+esc(pAct.coordinador_cargo||'')+'"></div>'+
-    '<div></div>'+
-    '<div><label>Ayudante de seguridad — documento (si aplica)</label><div style="display:flex;gap:6px;"><input id="p_ayudante_ced" value="'+esc(pAct.ayudante_ced||'')+'" placeholder="Cédula"><button class="btn-sm" onclick="buscarRol(\'ayudante\')">🔍</button></div></div>'+
-    '<div><label>Nombre del ayudante de seguridad</label><input id="p_ayudante" value="'+esc(pAct.ayudante_nombre||'')+'"></div>'+
     '</div></div></div>';
 
   // Validaciones (cancelación / suspensión)
@@ -398,8 +425,9 @@ function buscarRol(rol){
   const nombre=((e.apellidos||'')+' '+(e.nombres||'')).trim();
   document.getElementById('p_'+rol).value=nombre;
   // Cargo solo para autoriza y coordinador (los que tienen campo de cargo)
-  if(rol==='autoriza'&&document.getElementById('p_autorizacargo')) document.getElementById('p_autorizacargo').value=e.cargo||'';
-  if(rol==='coordinador'&&document.getElementById('p_coordcargo')) document.getElementById('p_coordcargo').value=e.cargo||'';
+  const campoCargo={autoriza:'p_autorizacargo',coordinador:'p_coordcargo',emergencias:'p_emergcargo'};
+  const idc=campoCargo[rol];
+  if(idc && document.getElementById(idc)) document.getElementById(idc).value=e.cargo||'';
 }
 
 async function agregarTrabajador(){
@@ -444,14 +472,37 @@ function renderTrab(){
     }).join('')+'</tbody></table></div>'):'<div style="font-size:11px;color:var(--slate);">Sin trabajadores. Agréguelos desde la lista de personal.</div>';
 }
 
-async function agregarEquipo(){
-  const id=document.getElementById('p_seleq').value; if(!id)return;
-  if(pEquip.find(x=>x.id===id)){ alert('Ese equipo ya está agregado'); return; }
-  const e=equipos.find(x=>x.id===id);
-  const insp=await inspeccionVencida(id);
-  pEquip.push({id,codigo:e.codigo,tipo:e.tipo==='Otros'?(e.tipo_otro||'Otros'):e.tipo,responsable:e.responsable||'',estado_ok:true,vencida:insp.vencida,sinInsp:insp.sinInsp,proxima:insp.proxima});
-  renderEquip();
+function filtrarEquiposPorResp(){
+  const resp=document.getElementById('p_selresp')?document.getElementById('p_selresp').value:'';
+  const q=document.getElementById('p_buscareq')?(document.getElementById('p_buscareq').value||'').toLowerCase().trim():'';
+  const terms=q?q.split(/\s+/):[];
+  document.querySelectorAll('#eqCheckList .eqchkrow').forEach(row=>{
+    const r=row.getAttribute('data-resp')||'';
+    const txt=row.getAttribute('data-txt')||'';
+    const okResp = !resp || r===resp;
+    const okTxt = !terms.length || terms.every(t=>txt.includes(t));
+    const visible = okResp && okTxt;
+    row.style.display = visible?'flex':'none';
+    if(!visible){ const chk=row.querySelector('.eqchk'); if(chk)chk.checked=false; }
+  });
 }
+async function agregarEquiposSeleccionados(){
+  const marcados=[...document.querySelectorAll('#eqCheckList .eqchk:checked')];
+  if(!marcados.length){ alert('Marque al menos un equipo'); return; }
+  let agregados=0, yaEstaban=0;
+  for(const chk of marcados){
+    const id=chk.value;
+    if(pEquip.find(x=>x.id===id)){ yaEstaban++; continue; }
+    const e=equipos.find(x=>x.id===id);
+    if(!e)continue;
+    const insp=await inspeccionVencida(id);
+    pEquip.push({id,codigo:e.codigo,tipo:e.tipo==='Otros'?(e.tipo_otro||'Otros'):e.tipo,responsable:e.responsable||'',estado_ok:true,vencida:insp.vencida,sinInsp:insp.sinInsp,proxima:insp.proxima});
+    agregados++; chk.checked=false;
+  }
+  renderEquip();
+  if(yaEstaban) alert(agregados+' equipo(s) agregado(s). '+yaEstaban+' ya estaban en la lista.');
+}
+async function agregarEquipo(){ return agregarEquiposSeleccionados(); }
 function quitarEquip(i){ pEquip.splice(i,1); renderEquip(); }
 function renderEquip(){
   const el=document.getElementById('equipList'); if(!el)return;
@@ -501,6 +552,7 @@ function recolectarPermiso(){
   pAct.autoriza_ced=document.getElementById('p_autoriza_ced')?document.getElementById('p_autoriza_ced').value.trim():'';
   pAct.autoriza_cargo=document.getElementById('p_autorizacargo').value.trim();
   pAct.emergencias_nombre=document.getElementById('p_emergencias').value.trim();
+  const emc=document.getElementById('p_emergcargo'); pAct.emergencias_cargo=emc?emc.value.trim():'';
   pAct.emergencias_ced=document.getElementById('p_emergencias_ced')?document.getElementById('p_emergencias_ced').value.trim():'';
   pAct.coordinador_nombre=document.getElementById('p_coordinador').value.trim();
   pAct.coordinador_ced=document.getElementById('p_coordinador_ced')?document.getElementById('p_coordinador_ced').value.trim():'';
