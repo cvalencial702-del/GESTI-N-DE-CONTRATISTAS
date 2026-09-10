@@ -291,12 +291,18 @@ async function verProyectosOT(nit){
 async function verPersonalContratista(nit){
   contratistaActual=nit;
   const c=document.getElementById('content');
-  const [ct,per]=await Promise.all([
+  const [ct,perAll]=await Promise.all([
     sb.from('gc_contratistas').select('razon_social').eq('nit',nit).limit(1),
-    sb.from('gc_trabajadores').select('*').eq('contratista_nit',nit).order('created_at',{ascending:false})
+    sb.from('gc_trabajadores').select('*').order('created_at',{ascending:false})
   ]);
   const razon=(ct.data&&ct.data[0]&&ct.data[0].razon_social)||nit;
-  const rows=per.data||[];
+  // Filtro tolerante: comparar solo los dígitos del NIT (ignora guiones, espacios y dígito de verificación)
+  const soloNum=v=>String(v||'').replace(/[^0-9]/g,'');
+  const nitBase=soloNum(nit);
+  const rows=(perAll.data||[]).filter(t=>{
+    const tn=soloNum(t.contratista_nit);
+    return tn===nitBase || tn.slice(0,-1)===nitBase || nitBase.slice(0,-1)===tn;
+  });
   c.innerHTML='<button class="btn-sm" onclick="verProyectosOT(\''+esc(nit)+'\')">← Volver a proyectos/OT</button>'+
     '<div class="sec-title" style="margin-top:10px;">Control de personal · '+esc(razon)+'</div><div class="sec-sub">Personal asociado a esta empresa · '+rows.length+' persona(s)</div>'+
     '<div class="toolbar"><input id="fPersC" placeholder="Buscar por nombre o cédula" style="max-width:280px;" oninput="filtrarPersonalContr()"><button class="btn btn-p" onclick="formTrabajador(null,\''+esc(nit)+'\')">＋ Agregar persona a esta empresa</button></div>'+
@@ -366,7 +372,7 @@ async function registrarPersonalOT(codigo,proyId){
   document.getElementById('barTitle').textContent='Control de personal';
   const c=document.getElementById('content');
   c.innerHTML='<button class="btn-sm" onclick="verProyectosOT(\''+contratistaActual+'\')">← Volver a proyectos/OT</button>'+
-    '<div class="sec-title" style="margin-top:10px;">Control de personal</div><div class="sec-sub">Orden de trabajo '+esc(codigo)+' · registre la ficha del trabajador</div>'+
+    '<div class="sec-title" style="margin-top:10px;">Control de personal</div><div class="sec-sub">Orden de trabajo '+esc(codigo)+' · registre la ficha del trabajador. Aquí se muestra solo el personal de ESTA orden.</div>'+
     '<div class="toolbar"><button class="btn btn-p" onclick="formPersonaOT()">＋ Agregar persona</button></div>'+
     '<div class="card" style="padding:6px 16px 14px;"><table><thead><tr><th>Cédula</th><th>Nombre</th><th>Cargo</th><th>Conduce</th><th>Condiciones</th><th></th></tr></thead><tbody id="persotBody"></tbody></table></div>';
   cargarPersonalOT();
@@ -377,6 +383,37 @@ async function cargarPersonalOT(){
     const ch=t.chequeo||{}; const n=Object.values(ch).filter(v=>v&&v.aplica).length;
     return '<tr><td>'+esc(t.cedula)+'</td><td style="font-weight:600;">'+esc((t.nombres||'')+' '+(t.apellidos||''))+'</td><td>'+esc(t.cargo||'—')+'</td><td>'+(t.conduce?'<span class="pill pill-warn">Sí</span>':'<span class="pill pill-gray">No</span>')+'</td><td><span class="pill pill-ok">'+n+' vigentes</span></td><td><button class="btn-sm" onclick="formPersonaOT(\''+esc(t.cedula)+'\')">✏️</button></td></tr>';
   }).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--slate);padding:20px;">Sin personal registrado</td></tr>';
+}
+async function buscarPersonaCedula(){
+  const ced=(document.getElementById('pt_ced').value||'').trim();
+  if(!ced){ alert('Escriba el número de cédula'); return; }
+  const {data}=await sb.from('gc_trabajadores').select('*').eq('cedula',ced).limit(1);
+  const d=(data&&data[0]);
+  if(!d){ alert('No se encontró personal con esa cédula. Puede diligenciar los datos manualmente.'); return; }
+  // Rellenar los campos del formulario
+  const set=(id,val)=>{ const e=document.getElementById(id); if(e)e.value=val||''; };
+  set('pt_nombres',d.nombres); set('pt_apellidos',d.apellidos);
+  set('pt_gen',d.genero); set('pt_fnac',d.fecha_nacimiento);
+  set('pt_rh',d.rh); set('pt_cor',d.correo); set('pt_cel',d.celular);
+  set('pt_car',d.cargo); set('pt_eps',d.eps); set('pt_arl',d.arl); set('pt_afp',d.afp);
+  set('pt_alg',d.alergias); set('pt_en',d.emerg_nombre); set('pt_et',d.emerg_telefono);
+  if(document.getElementById('pt_con')&&d.contratista_nit) document.getElementById('pt_con').value=d.contratista_nit;
+  // Conducción y licencia
+  const ch=d.chequeo||{};
+  if(document.getElementById('pt_conduce')){
+    const conduceOn=(ch.conduccion&&ch.conduccion.aplica)||d.conduce;
+    document.getElementById('pt_conduce').checked=!!conduceOn;
+    const det=document.getElementById('condDetalle'); if(det)det.style.display=conduceOn?'block':'none';
+    set('pt_liccat',d.lic_categoria); set('pt_licnum',d.lic_numero); set('pt_licvig',d.lic_vigencia);
+  }
+  // Marcar las condiciones del chequeo
+  CONDICIONES.forEach(co=>{
+    if(co.k==='conduccion')return;
+    const el=document.getElementById('cond_'+co.k);
+    const cur=ch[co.k]||{};
+    if(el){ el.checked=!!cur.aplica; const fb=document.getElementById('cond_fecha_'+co.k); if(fb)fb.style.display=cur.aplica?'flex':'none'; const v=document.getElementById('cond_venc_'+co.k); if(v&&cur.vence)v.value=cur.vence; }
+  });
+  alert('✅ Datos cargados de: '+((d.nombres||'')+' '+(d.apellidos||'')).trim());
 }
 async function formPersonaOT(ced){
   let d={};
@@ -409,7 +446,8 @@ async function formPersonaOT(ced){
     return '<div><label style="display:flex;align-items:center;gap:7px;font-weight:400;text-transform:none;letter-spacing:0;font-size:12px;"><input type="checkbox" id="'+inputId+'" '+checked+' style="width:auto;" onchange="'+onchange+'"> '+co.label+'</label>'+fechaBox+(esConduccion?condDetalleLic:'')+'</div>';
   }).join('');
   abrirModal('<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(ced?'Editar':'Agregar')+' persona</div><div class="sec-sub">Datos personales y de seguridad social'+(esContr?' · (como contratista solo puede editar Estado y Conducción)':'')+'</div>'+
-    '<div class="grid3"><div><label>Número de cédula</label><input id="pt_ced" value="'+esc(d.cedula||'')+'" '+(ced?'readonly':(esContr?'readonly':''))+'></div><div><label>Nombres y apellidos</label><input id="pt_nom" value="'+esc(((d.nombres||'')+' '+(d.apellidos||'')).trim())+'" '+bloq+'></div><div><label>Género</label><select id="pt_gen" '+bloq+'><option value="">—</option><option>Masculino</option><option>Femenino</option><option>Otro</option></select></div>'+
+    '<div class="grid3"><div><label>Número de cédula</label><div style="display:flex;gap:6px;"><input id="pt_ced" value="'+esc(d.cedula||'')+'" '+(ced?'readonly':(esContr?'readonly':''))+' onkeydown="if(event.key===\'Enter\'){event.preventDefault();buscarPersonaCedula();}">'+(ced||esContr?'':'<button class="btn-sm" type="button" onclick="buscarPersonaCedula()">🔍</button>')+'</div></div><div><label>Nombres</label><input id="pt_nombres" value="'+esc(d.nombres||'')+'" '+bloq+'></div><div><label>Apellidos</label><input id="pt_apellidos" value="'+esc(d.apellidos||'')+'" '+bloq+'></div></div>'+
+    '<div class="grid3"><div><label>Género</label><select id="pt_gen" '+bloq+'><option value="">—</option><option>Masculino</option><option>Femenino</option><option>Otro</option></select></div>'+
     '<div><label>Fecha de nacimiento</label><input type="date" id="pt_fnac" value="'+esc(d.fecha_nacimiento||'')+'" '+bloq+'></div><div><label>Tipo de sangre / RH</label><input id="pt_rh" value="'+esc(d.rh||'')+'" placeholder="O+" '+bloq+'></div><div><label>Correo electrónico</label><input id="pt_cor" value="'+esc(d.correo||'')+'" '+bloq+'></div>'+
     '<div><label>Teléfono celular</label><input id="pt_cel" value="'+esc(d.celular||'')+'" '+bloq+'></div><div><label>Cargo</label><input id="pt_car" value="'+esc(d.cargo||'')+'" '+bloq+'></div><div><label>EPS</label><input id="pt_eps" value="'+esc(d.eps||'')+'" '+bloq+'></div>'+
     '<div><label>ARL</label><input id="pt_arl" value="'+esc(d.arl||'')+'" '+bloq+'></div><div><label>AFP</label><input id="pt_afp" value="'+esc(d.afp||'')+'" '+bloq+'></div><div><label>Alergias / condiciones médicas</label><input id="pt_alg" value="'+esc(d.alergias||'')+'" '+bloq+'></div>'+
@@ -444,8 +482,9 @@ async function guardarPersonaOT(ced){
   }
 
   // Admin/Gestor: guardado completo
-  const nomComp=document.getElementById('pt_nom').value.trim();
-  const partes=nomComp.split(' ');
+  const nombres=document.getElementById('pt_nombres').value.trim();
+  const apellidos=document.getElementById('pt_apellidos').value.trim();
+  const nomComp=(nombres+' '+apellidos).trim();
   const chequeo={};
   CONDICIONES.forEach(co=>{
     if(co.k==='conduccion'){ chequeo.conduccion={aplica:conduce}; return; }
@@ -454,11 +493,13 @@ async function guardarPersonaOT(ced){
     if(co.fecha){ const v=document.getElementById('cond_venc_'+co.k); chequeo[co.k]={aplica:chk,vence:chk&&v?(v.value||null):null}; }
     else { chequeo[co.k]={aplica:chk}; }
   });
+  const selCon=document.getElementById('pt_con');
+  const nitCon=(selCon?selCon.value:'')||contratistaActual||null;
   const row={
     cedula:document.getElementById('pt_ced').value.trim(),
-    contratista_nit:document.getElementById('pt_con').value||contratistaActual||null,
+    contratista_nit:nitCon,
     orden_codigo:ordenActual, proyecto_id:proyectoActual,
-    nombres:partes[0]||'', apellidos:partes.slice(1).join(' '),
+    nombres:nombres, apellidos:apellidos,
     genero:document.getElementById('pt_gen').value||null,
     fecha_nacimiento:document.getElementById('pt_fnac').value||null,
     rh:document.getElementById('pt_rh').value.trim(),
@@ -475,7 +516,7 @@ async function guardarPersonaOT(ced){
     lic_categoria:conduce?licCat:null, lic_numero:conduce?licNum:null, lic_vigencia:conduce?(licVig||null):null,
     chequeo, activo:document.getElementById('pt_est').value==='true'
   };
-  if(!row.cedula||!nomComp){ if(err)err.textContent='Cédula y nombre son obligatorios'; return; }
+  if(!row.cedula||!nombres||!apellidos){ if(err)err.textContent='Cédula, nombres y apellidos son obligatorios'; return; }
   if(!row.contratista_nit){ if(err)err.textContent='Debe asignar la persona a un contratista (razón social).'; return; }
   try{
     if(ced){await sb.from('gc_trabajadores').update(row).eq('cedula',ced);}
