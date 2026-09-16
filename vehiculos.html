@@ -74,6 +74,7 @@
   <nav class="topnav">
     <a href="#" onclick="event.preventDefault();nuevaInspeccion()" id="nav-nueva" class="active">Nueva inspección</a>
     <a href="#" onclick="event.preventDefault();showView('listado')" id="nav-listado">Historial</a>
+    <a href="#" onclick="event.preventDefault();showView('vencidos')" id="nav-vencidos">📅 Documentos vencidos</a>
     <a href="index.html">← Volver al sistema</a>
   </nav>
 </div>
@@ -210,6 +211,19 @@
     </div>
   </div>
 
+  <!-- ============ VISTA DOCUMENTOS VENCIDOS ============ -->
+  <div id="v-vencidos" class="hidden">
+    <div class="sec-head"><span class="sec-num">📅</span><span class="sec-title">Documentos vencidos y por vencer</span><span class="sec-line"></span></div>
+    <div class="card" style="margin-bottom:12px;display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+      <div style="flex:1;min-width:180px;"><label>Buscar placa / conductor</label><input id="vencFiltro" placeholder="Placa o conductor" oninput="renderVencidos()"></div>
+      <div style="flex:1;min-width:150px;"><label>Mostrar</label><select id="vencTipo" onchange="renderVencidos()"><option value="todos">Vencidos + por vencer</option><option value="vencido">Solo vencidos</option><option value="porvencer">Solo por vencer (30 días)</option></select></div>
+    </div>
+    <div id="vencKPIs" class="grid3" style="margin-bottom:12px;"></div>
+    <div class="card" style="padding:6px 16px 14px;">
+      <table><thead><tr><th>Placa</th><th>Conductor</th><th>Documento</th><th>Vence</th><th>Estado</th></tr></thead><tbody id="vencBody"></tbody></table>
+    </div>
+  </div>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -217,17 +231,40 @@
 const SUPABASE_URL='https://gtmfbdjwiypzpdlmwolg.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0bWZiZGp3aXlwenBkbG13b2xnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4Mzk1NjUsImV4cCI6MjEwNDQxNTU2NX0.s_FZ7m2o1Fv54GawJ5XbNHQFmnGyfe93faWlw035W1I';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+function esc(s){return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
 
 let editId=null, conductorEmp=null, inspectorEmp=null, resultadoSel=null, inspecciones=[];
+// Contexto de contratista (si viene por URL): filtra a los proyectos de su empresa
+const _params=new URLSearchParams(location.search);
+const CONTRATISTA_NIT=_params.get('nit')||'';
+let _proyectosEmpresa=null; // nombres de proyectos de la empresa (null = admin, ve todo)
+async function cargarProyectosEmpresa(){
+  if(!CONTRATISTA_NIT){ _proyectosEmpresa=null; return; }
+  try{
+    const {data:ords}=await sb.from('gc_ordenes').select('proyecto_id').eq('contratista_nit',CONTRATISTA_NIT);
+    const ids=[...new Set((ords||[]).map(o=>o.proyecto_id).filter(Boolean))];
+    let nombres=[];
+    if(ids.length){ const {data:prs}=await sb.from('gc_proyectos').select('nombre').in('id',ids); nombres=(prs||[]).map(p=>(p.nombre||'').trim()).filter(Boolean); }
+    _proyectosEmpresa=nombres;
+  }catch(e){ _proyectosEmpresa=[]; }
+}
+function filtrarPorEmpresa(lista){
+  if(_proyectosEmpresa===null) return lista; // admin: todo
+  const set=new Set(_proyectosEmpresa.map(x=>x.toLowerCase()));
+  return lista.filter(r=>set.has(String(r.proyecto||'').trim().toLowerCase()));
+}
 const fotos={frontal:null,lateral_der:null,trasera:null,lateral_izq:null};
 const firmas={};
 
 function showView(v){
   document.getElementById('v-nueva').classList.toggle('hidden',v!=='nueva');
   document.getElementById('v-listado').classList.toggle('hidden',v!=='listado');
+  document.getElementById('v-vencidos').classList.toggle('hidden',v!=='vencidos');
   document.getElementById('nav-nueva').classList.toggle('active',v==='nueva');
   document.getElementById('nav-listado').classList.toggle('active',v==='listado');
+  document.getElementById('nav-vencidos').classList.toggle('active',v==='vencidos');
   if(v==='listado'){ cargarInspecciones(); }
+  if(v==='vencidos'){ cargarVencidos(); }
 }
 
 // ===== Elementos a verificar según tipo de vehículo =====
@@ -551,10 +588,66 @@ function nuevaInspeccion(){
 
 // ===== Listado + KPIs + segmentar por placa =====
 async function cargarInspecciones(){
+  if(_proyectosEmpresa===undefined||_proyectosEmpresa===null&&CONTRATISTA_NIT){ await cargarProyectosEmpresa(); }
   const {data}=await sb.from('gc_vehiculos')
     .select('id,proyecto,fecha_inspeccion,placa,tipo_vehiculo,tipo_servicio,gestor,conductor_nombre,conductor_identificacion,resultado,estado,licencia_venc,soat_venc,rtm_venc,polizas_venc,rtm_aplica,conductor_firmado,firma_token,created_at')
     .order('created_at',{ascending:false});
-  inspecciones=data||[]; renderListado(); calcularKPIs();
+  inspecciones=filtrarPorEmpresa(data||[]); renderListado(); calcularKPIs();
+}
+let _vencData=[];
+async function cargarVencidos(){
+  if(CONTRATISTA_NIT && _proyectosEmpresa===null){ await cargarProyectosEmpresa(); }
+  const {data}=await sb.from('gc_vehiculos')
+    .select('id,proyecto,placa,conductor_nombre,licencia_venc,soat_venc,rtm_venc,polizas_venc,rtm_aplica')
+    .order('created_at',{ascending:false});
+  _vencData=filtrarPorEmpresa(data||[]);
+  renderVencidos();
+}
+function diasHasta(fecha){ if(!fecha)return null; const hoy=new Date();hoy.setHours(0,0,0,0); const f=new Date(fecha+'T00:00:00'); return Math.round((f-hoy)/(1000*60*60*24)); }
+function renderVencidos(){
+  const filtroTxt=(document.getElementById('vencFiltro').value||'').toLowerCase().trim();
+  const tipo=document.getElementById('vencTipo').value;
+  // Solo la inspección más reciente por placa (para no repetir vehículos)
+  const porPlaca={};
+  _vencData.forEach(r=>{ const p=(r.placa||'').toUpperCase(); if(!p)return; if(!porPlaca[p])porPlaca[p]=r; });
+  const docs=[];
+  Object.values(porPlaca).forEach(r=>{
+    const items=[
+      {doc:'Licencia',venc:r.licencia_venc},
+      {doc:'SOAT',venc:r.soat_venc},
+      {doc:'RTM',venc:(r.rtm_aplica===false?null:r.rtm_venc)},
+      {doc:'Pólizas',venc:r.polizas_venc}
+    ];
+    items.forEach(it=>{
+      if(!it.venc)return;
+      const d=diasHasta(it.venc);
+      let est=null;
+      if(d<0) est='vencido'; else if(d<=30) est='porvencer'; else return; // solo vencidos o por vencer
+      docs.push({placa:r.placa,conductor:r.conductor_nombre,doc:it.doc,venc:it.venc,dias:d,estado:est});
+    });
+  });
+  // Filtros
+  let lista=docs.filter(x=>{
+    if(tipo==='vencido'&&x.estado!=='vencido')return false;
+    if(tipo==='porvencer'&&x.estado!=='porvencer')return false;
+    if(filtroTxt){ const t=((x.placa||'')+' '+(x.conductor||'')).toLowerCase(); if(!t.includes(filtroTxt))return false; }
+    return true;
+  }).sort((a,b)=>a.dias-b.dias);
+  // KPIs
+  const nVenc=docs.filter(x=>x.estado==='vencido').length;
+  const nPorV=docs.filter(x=>x.estado==='porvencer').length;
+  const nVeh=new Set(docs.map(x=>x.placa)).size;
+  document.getElementById('vencKPIs').innerHTML=
+    '<div class="card" style="text-align:center;padding:14px;"><div style="font-size:10px;color:var(--slate);text-transform:uppercase;">Documentos vencidos</div><div style="font-size:26px;font-weight:700;color:#DC2626;">'+nVenc+'</div></div>'+
+    '<div class="card" style="text-align:center;padding:14px;"><div style="font-size:10px;color:var(--slate);text-transform:uppercase;">Por vencer (30 días)</div><div style="font-size:26px;font-weight:700;color:#D97706;">'+nPorV+'</div></div>'+
+    '<div class="card" style="text-align:center;padding:14px;"><div style="font-size:10px;color:var(--slate);text-transform:uppercase;">Vehículos afectados</div><div style="font-size:26px;font-weight:700;">'+nVeh+'</div></div>';
+  // Tabla
+  document.getElementById('vencBody').innerHTML=lista.length?lista.map(x=>{
+    const color=x.estado==='vencido'?'#DC2626':'#D97706';
+    const etiqueta=x.estado==='vencido'?('Vencido hace '+Math.abs(x.dias)+' día(s)'):('Vence en '+x.dias+' día(s)');
+    const punto='<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+color+';margin-right:6px;"></span>';
+    return '<tr><td style="font-weight:600;">'+esc(x.placa)+'</td><td>'+esc(x.conductor||'—')+'</td><td>'+esc(x.doc)+'</td><td>'+esc(x.venc)+'</td><td>'+punto+'<span style="color:'+color+';font-weight:600;font-size:11px;">'+etiqueta+'</span></td></tr>';
+  }).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:20px;">✅ No hay documentos vencidos ni por vencer.</td></tr>';
 }
 function calcularKPIs(){
   let vencer=0,vencidos=0,aprob=0;

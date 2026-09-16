@@ -598,8 +598,10 @@ async function guardarProyecto(id){
 // ===================== INSPECCIONES: VEHÍCULOS y EPP =====================
 RENDER.insp_vehiculos=function(){
   const c=document.getElementById('content');
+  const esContr=(sesion.rol==='contratista');
+  const url=esContr&&sesion.contratista_nit?('vehiculos.html?nit='+encodeURIComponent(sesion.contratista_nit)):'vehiculos.html';
   c.innerHTML='<div class="sec-title">Inspección de vehículos</div><div class="sec-sub">Preoperacional de vehículos y motos</div>'+
-    '<div class="card" style="text-align:center;padding:30px;"><div style="font-size:40px;">🚗</div><div style="font-size:13px;color:var(--slate);margin:10px 0 16px;">Abre el módulo de verificación de vehículos para registrar o consultar inspecciones.</div><a class="btn btn-p" href="vehiculos.html" style="text-decoration:none;">Abrir verificación de vehículos →</a></div>';
+    '<div class="card" style="text-align:center;padding:30px;"><div style="font-size:40px;">🚗</div><div style="font-size:13px;color:var(--slate);margin:10px 0 16px;">Abre el módulo de verificación de vehículos para registrar o consultar inspecciones.'+(esContr?' Verás solo los vehículos de los proyectos de tu empresa.':'')+'</div><a class="btn btn-p" href="'+url+'" style="text-decoration:none;">Abrir verificación de vehículos →</a></div>';
 };
 RENDER.insp_epp=function(){
   const c=document.getElementById('content');

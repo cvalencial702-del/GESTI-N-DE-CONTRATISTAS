@@ -1,0 +1,71 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Migrar Inspecciones de Vehículos · LPS</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#EEF1F6;color:#0A2540;margin:0;padding:24px;}
+.wrap{max-width:720px;margin:0 auto;}
+.card{background:#fff;border:1px solid #E2EBF3;border-radius:12px;padding:22px;margin-bottom:16px;}
+h1{font-size:20px;margin:0 0 4px;} .sub{font-size:13px;color:#5B6B7C;margin-bottom:16px;}
+.btn{border:none;border-radius:8px;padding:12px 20px;font-size:14px;font-weight:600;cursor:pointer;}
+.btn-p{background:#1598FF;color:#fff;} .btn-p:disabled{opacity:.5;cursor:not-allowed;}
+.log{background:#0A2540;color:#7FffA8;font-family:ui-monospace,monospace;font-size:12px;padding:14px;border-radius:8px;max-height:340px;overflow-y:auto;white-space:pre-wrap;margin-top:14px;}
+.bar{height:22px;background:#E2EBF3;border-radius:11px;overflow:hidden;margin:12px 0;}
+.bar>div{height:100%;background:#16A34A;width:0%;transition:width .3s;}
+.warn{background:#FEF3C7;border:1px solid #E5B94A;border-radius:8px;padding:12px;font-size:12px;color:#7A5A11;margin-bottom:14px;}
+</style></head><body>
+<div class="wrap">
+  <div class="card">
+    <h1>Migrar Inspecciones de Vehículos</h1>
+    <div class="sub">Copia las inspecciones del sistema original (SISTEMA-DE-GESTION-LPS) al proyecto de contratistas (GESTIÓN DE CONTRATISTAS).</div>
+    <div class="warn">⚠ Antes de migrar, ejecute <b>contratistas-vehiculos-completo.sql</b> en el proyecto de contratistas para crear la tabla gc_vehiculos. Esta migración copia también las fotos (puede tardar varios minutos).</div>
+    <button class="btn btn-p" id="btnMig" onclick="migrar()">▶ Iniciar migración</button>
+    <div class="bar"><div id="barFill"></div></div>
+    <div id="stat" style="font-size:13px;font-weight:600;"></div>
+    <div class="log" id="log">Listo para iniciar…</div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ORIGEN: sistema original
+const ORIG_URL='https://kssoegcjwngsnfwdvjne.supabase.co';
+const ORIG_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtzc29lZ2Nqd25nc25md2R2am5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NjE3OTMsImV4cCI6MjA5OTAzNzc5M30.rtvKepiLyKEMkJPxTHw336E6UEoPyAkEX_5jU7WgGM4';
+// DESTINO: contratistas
+const DEST_URL='https://gtmfbdjwiypzpdlmwolg.supabase.co';
+const DEST_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0bWZiZGp3aXlwenBkbG13b2xnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4Mzk1NjUsImV4cCI6MjEwNDQxNTU2NX0.s_FZ7m2o1Fv54GawJ5XbNHQFmnGyfe93faWlw035W1I';
+const orig=supabase.createClient(ORIG_URL,ORIG_KEY);
+const dest=supabase.createClient(DEST_URL,DEST_KEY);
+function log(m){ const l=document.getElementById('log'); l.textContent+='\n'+m; l.scrollTop=l.scrollHeight; }
+function prog(p){ document.getElementById('barFill').style.width=p+'%'; }
+// Columnas a copiar (todas menos las que no existen en destino)
+const COLS=['id','proyecto','fecha_inspeccion','conductor_nombre','conductor_identificacion','conductor_id','gestor','tipo_vehiculo','placa','tipo_servicio','referencia_modelo','foto_frontal','foto_lateral_der','foto_trasera','foto_lateral_izq','licencia_numero','licencia_venc','tarjeta_propiedad','soat_numero','soat_venc','rtm_numero','rtm_venc','rtm_aplica','polizas','polizas_venc','elementos','botiquin','extintor_recarga','fugas','llanta_repuesto_estado','kit_carretera','epp_moto','casco','tablero_sin_fallas','cinturones_estado','limpieza_estado','resultado','observaciones','inspector_id','inspector_nombre','inspector_identificacion','inspector_cargo','firma_inspector','firma_conductor','conductor_firmado','estado','firma_token','created_at','updated_at'];
+async function migrar(){
+  const btn=document.getElementById('btnMig'); btn.disabled=true;
+  try{
+    log('Leyendo inspecciones del origen…');
+    // Traer todo paginando
+    let todos=[],desde=0,lote=20;
+    while(true){
+      const {data,error}=await orig.from('verificacion_vehiculos').select('*').range(desde,desde+lote-1).order('created_at');
+      if(error)throw error;
+      todos=todos.concat(data||[]);
+      if(!data||data.length<lote)break;
+      desde+=lote;
+      log('  leídos '+todos.length+'…');
+    }
+    log('Total a migrar: '+todos.length);
+    document.getElementById('stat').textContent='Migrando '+todos.length+' inspecciones…';
+    let ok=0, err=0;
+    for(let i=0;i<todos.length;i++){
+      const r=todos[i];
+      const row={}; COLS.forEach(c=>{ if(r[c]!==undefined) row[c]=r[c]; });
+      try{
+        const {error}=await dest.from('gc_vehiculos').upsert(row,{onConflict:'id'});
+        if(error)throw error;
+        ok++;
+      }catch(e){ err++; log('  ✗ '+(r.placa||r.id)+': '+e.message); }
+      prog(Math.round((i+1)/todos.length*100));
+      document.getElementById('stat').textContent='Progreso: '+(i+1)+'/'+todos.length+' (✅ '+ok+' · ✗ '+err+')';
+    }
+    log('\n✅ MIGRACIÓN COMPLETA: '+ok+' copiadas, '+err+' con error.');
+    document.getElementById('stat').textContent='✅ Listo: '+ok+' migradas, '+err+' errores.';
+  }catch(e){ log('✗ ERROR: '+e.message); btn.disabled=false; }
+}
+</script></body></html>
