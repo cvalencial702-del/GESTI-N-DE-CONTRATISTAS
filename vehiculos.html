@@ -67,7 +67,7 @@
   <div class="brand">
     <div class="logo">LPS</div>
     <div>
-      <div class="sub">Proyecto Claro · Brownfield</div>
+      <div class="sub">SIG HSEQ · Grupo LPS</div>
       <div class="name">Verificación de vehículos y motos</div>
     </div>
   </div>
@@ -777,7 +777,7 @@ async function pdfInspeccion(id){
   const fotoImg=(t,src)=>src?'<div style="text-align:center;"><img src="'+src+'" style="width:120px;height:90px;object-fit:cover;border:1px solid #ccc;border-radius:4px;"><div style="font-size:9px;">'+t+'</div></div>':'';
   const w=window.open('','_blank');
   w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Verificación '+(r.placa||'')+'</title></head><body style="font-family:Arial,sans-serif;margin:22px;color:#222;font-size:12px;">'
-    +'<div style="background:#0A2540;color:#fff;padding:14px;border-radius:8px;margin-bottom:14px;"><h1 style="margin:0;font-size:15px;">VERIFICACIÓN DE VEHÍCULOS Y MOTOS</h1><p style="margin:3px 0 0;font-size:11px;color:#B0C9E4;">Proyecto Claro · Brownfield — SIG HSEQ Grupo LPS</p></div>'
+    +'<div style="background:#0A2540;color:#fff;padding:14px;border-radius:8px;margin-bottom:14px;"><h1 style="margin:0;font-size:15px;">VERIFICACIÓN DE VEHÍCULOS Y MOTOS</h1><p style="margin:3px 0 0;font-size:11px;color:#B0C9E4;">SIG HSEQ — Grupo LPS</p></div>'
     +'<table style="width:100%;margin-bottom:10px;font-size:11px;"><tr><td><strong>Fecha:</strong> '+((r.fecha_inspeccion||'').slice(0,16).replace('T',' '))+'</td><td><strong>Placa:</strong> '+(r.placa||'')+'</td><td><strong>Tipo:</strong> '+(r.tipo_vehiculo||'')+'</td></tr>'
     +'<tr><td><strong>Conductor:</strong> '+(r.conductor_nombre||'—')+'</td><td><strong>C.C.:</strong> '+(r.conductor_identificacion||'—')+'</td><td><strong>Servicio:</strong> '+(r.tipo_servicio||'—')+'</td></tr>'
     +'<tr><td><strong>Gestor:</strong> '+(r.gestor||'—')+'</td><td><strong>Referencia:</strong> '+(r.referencia_modelo||'—')+'</td><td></td></tr></table>'
