@@ -201,6 +201,7 @@
   <!-- ============ VISTA LISTADO ============ -->
   <div id="v-listado" class="hidden">
     <div class="sec-head"><span class="sec-num">📋</span><span class="sec-title">Historial de inspecciones</span><span class="sec-line"></span></div>
+    <div id="migBox"></div>
     <div class="card" style="margin-bottom:12px;display:flex;gap:10px;align-items:end;">
       <div style="flex:1;"><label>Segmentar por placa</label><input id="filtroPlaca" placeholder="Escriba una placa" style="text-transform:uppercase;" oninput="renderListado()"></div>
       <div style="flex:1;"><label>Tipo de vehículo</label><select id="filtroTipo" onchange="renderListado()"><option value="">Todos</option><option>Moto</option><option>Carry Ref</option><option>Camión</option></select></div>
@@ -232,6 +233,24 @@ const SUPABASE_URL='https://gtmfbdjwiypzpdlmwolg.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0bWZiZGp3aXlwenBkbG13b2xnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4Mzk1NjUsImV4cCI6MjEwNDQxNTU2NX0.s_FZ7m2o1Fv54GawJ5XbNHQFmnGyfe93faWlw035W1I';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 function esc(s){return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+// Comprime una foto en base64 (data URI) a máx 800px y JPEG 0.6. Devuelve promesa con el nuevo base64.
+function comprimirFotoB64(dataUri){
+  return new Promise(resolve=>{
+    if(!dataUri||typeof dataUri!=='string'||!dataUri.startsWith('data:image')){ resolve(dataUri); return; }
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        let {width:w,height:h}=img; const MAX=800;
+        if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;} else {w=Math.round(w*MAX/h);h=MAX;} }
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(cv.toDataURL('image/jpeg',0.6));
+      }catch(_){ resolve(dataUri); }
+    };
+    img.onerror=()=>resolve(dataUri);
+    img.src=dataUri;
+  });
+}
 
 let editId=null, conductorEmp=null, inspectorEmp=null, resultadoSel=null, inspecciones=[];
 // Contexto de contratista (si viene por URL): filtra a los proyectos de su empresa
@@ -345,14 +364,14 @@ function cargarFoto(input,key){
   const file=input.files[0]; if(!file) return;
   const r=new FileReader();
   r.onload=e=>{
-    // Comprimir: redimensiona a máx 1000px y convierte a JPEG (~0.7) para reducir el peso
+    // Comprimir (nivel alto): redimensiona a máx 800px y convierte a JPEG (0.6)
     const imgTmp=new Image();
     imgTmp.onload=()=>{
-      let {width:w,height:h}=imgTmp; const MAX=1000;
+      let {width:w,height:h}=imgTmp; const MAX=800;
       if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;} else {w=Math.round(w*MAX/h);h=MAX;} }
       const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
       cv.getContext('2d').drawImage(imgTmp,0,0,w,h);
-      let dataComp; try{ dataComp=cv.toDataURL('image/jpeg',0.7); }catch(_){ dataComp=e.target.result; }
+      let dataComp; try{ dataComp=cv.toDataURL('image/jpeg',0.6); }catch(_){ dataComp=e.target.result; }
       fotos[key]=dataComp;
       const img=document.getElementById('img_'+key), ic=document.getElementById('ic_'+key);
       if(img){img.src=dataComp;img.classList.remove('hidden');}
@@ -593,6 +612,53 @@ async function cargarInspecciones(){
     .select('id,proyecto,fecha_inspeccion,placa,tipo_vehiculo,tipo_servicio,gestor,conductor_nombre,conductor_identificacion,resultado,estado,licencia_venc,soat_venc,rtm_venc,polizas_venc,rtm_aplica,conductor_firmado,firma_token,created_at')
     .order('created_at',{ascending:false});
   inspecciones=filtrarPorEmpresa(data||[]); renderListado(); calcularKPIs();
+  pintarBotonMigracion();
+}
+function pintarBotonMigracion(){
+  const box=document.getElementById('migBox'); if(!box)return;
+  if(CONTRATISTA_NIT){ box.innerHTML=''; return; }
+  box.innerHTML='<div class="card" style="margin-bottom:12px;background:#F8FAFC;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">'+
+    '<div style="font-size:12px;color:var(--slate);">¿Faltan inspecciones del sistema anterior? Puede traerlas una sola vez.</div>'+
+    '<button class="btn btn-g" onclick="iniciarMigracion()">⬇ Migrar datos del sistema anterior</button></div>';
+}
+async function iniciarMigracion(){
+  if(!confirm('Se copiarán las inspecciones del sistema anterior a este proyecto. Puede tardar varios minutos por las fotos.\n\n¿Continuar?')) return;
+  const box=document.getElementById('migBox');
+  box.innerHTML='<div class="card" style="margin-bottom:12px;"><div style="font-weight:600;margin-bottom:8px;">Migrando inspecciones…</div><div style="height:20px;background:#E2EBF3;border-radius:10px;overflow:hidden;"><div id="migBar" style="height:100%;background:#16A34A;width:0%;transition:width .3s;"></div></div><div id="migStat" style="font-size:12px;margin-top:8px;color:var(--slate);">Conectando…</div></div>';
+  try{
+    const ORIG_URL='https://kssoegcjwngsnfwdvjne.supabase.co';
+    const ORIG_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtzc29lZ2Nqd25nc25md2R2am5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NjE3OTMsImV4cCI6MjA5OTAzNzc5M30.rtvKepiLyKEMkJPxTHw336E6UEoPyAkEX_5jU7WgGM4';
+    const orig=supabase.createClient(ORIG_URL,ORIG_KEY);
+    const COLS=['id','proyecto','fecha_inspeccion','conductor_nombre','conductor_identificacion','conductor_id','gestor','tipo_vehiculo','placa','tipo_servicio','referencia_modelo','foto_frontal','foto_lateral_der','foto_trasera','foto_lateral_izq','licencia_numero','licencia_venc','tarjeta_propiedad','soat_numero','soat_venc','rtm_numero','rtm_venc','rtm_aplica','polizas','polizas_venc','elementos','botiquin','extintor_recarga','fugas','llanta_repuesto_estado','kit_carretera','epp_moto','casco','tablero_sin_fallas','cinturones_estado','limpieza_estado','resultado','observaciones','inspector_id','inspector_nombre','inspector_identificacion','inspector_cargo','firma_inspector','firma_conductor','conductor_firmado','estado','firma_token','created_at','updated_at'];
+    document.getElementById('migStat').textContent='Leyendo IDs del sistema anterior…';
+    let ids=[],desde=0,lote=200;
+    while(true){
+      const {data,error}=await orig.from('verificacion_vehiculos').select('id').range(desde,desde+lote-1).order('created_at');
+      if(error)throw error;
+      (data||[]).forEach(x=>ids.push(x.id));
+      if(!data||data.length<lote)break;
+      desde+=lote;
+    }
+    let ok=0,err=0;
+    for(let i=0;i<ids.length;i++){
+      try{
+        const {data:one,error:eGet}=await orig.from('verificacion_vehiculos').select('*').eq('id',ids[i]).limit(1);
+        if(eGet)throw eGet;
+        const r=(one&&one[0]); if(!r){ err++; continue; }
+        const row={}; COLS.forEach(c=>{ if(r[c]!==undefined) row[c]=r[c]; });
+        // Comprimir las 4 fotos antes de guardar (reduce mucho el peso)
+        for(const fc of ['foto_frontal','foto_lateral_der','foto_trasera','foto_lateral_izq']){
+          if(row[fc]) row[fc]=await comprimirFotoB64(row[fc]);
+        }
+        const {error:ePut}=await sb.from('gc_vehiculos').upsert(row,{onConflict:'id'}); if(ePut)throw ePut; ok++;
+      }catch(e){ err++; }
+      const pct=Math.round((i+1)/ids.length*100);
+      document.getElementById('migBar').style.width=pct+'%';
+      document.getElementById('migStat').textContent='Progreso: '+(i+1)+'/'+ids.length+' (✅ '+ok+' · ✗ '+err+')';
+    }
+    document.getElementById('migStat').innerHTML='<span style="color:#16A34A;font-weight:600;">✅ Migración completa: '+ok+' inspecciones. '+(err?err+' con error.':'')+'</span>';
+    setTimeout(()=>{ cargarInspecciones(); },1500);
+  }catch(e){ document.getElementById('migStat').innerHTML='<span style="color:#DC2626;">✗ Error: '+esc(e.message)+'</span>'; }
 }
 let _vencData=[];
 async function cargarVencidos(){

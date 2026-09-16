@@ -34,35 +34,55 @@ const orig=supabase.createClient(ORIG_URL,ORIG_KEY);
 const dest=supabase.createClient(DEST_URL,DEST_KEY);
 function log(m){ const l=document.getElementById('log'); l.textContent+='\n'+m; l.scrollTop=l.scrollHeight; }
 function prog(p){ document.getElementById('barFill').style.width=p+'%'; }
+function comprimirFotoB64(dataUri){
+  return new Promise(resolve=>{
+    if(!dataUri||typeof dataUri!=='string'||!dataUri.startsWith('data:image')){ resolve(dataUri); return; }
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        let {width:w,height:h}=img; const MAX=800;
+        if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;} else {w=Math.round(w*MAX/h);h=MAX;} }
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(cv.toDataURL('image/jpeg',0.6));
+      }catch(_){ resolve(dataUri); }
+    };
+    img.onerror=()=>resolve(dataUri);
+    img.src=dataUri;
+  });
+}
 // Columnas a copiar (todas menos las que no existen en destino)
 const COLS=['id','proyecto','fecha_inspeccion','conductor_nombre','conductor_identificacion','conductor_id','gestor','tipo_vehiculo','placa','tipo_servicio','referencia_modelo','foto_frontal','foto_lateral_der','foto_trasera','foto_lateral_izq','licencia_numero','licencia_venc','tarjeta_propiedad','soat_numero','soat_venc','rtm_numero','rtm_venc','rtm_aplica','polizas','polizas_venc','elementos','botiquin','extintor_recarga','fugas','llanta_repuesto_estado','kit_carretera','epp_moto','casco','tablero_sin_fallas','cinturones_estado','limpieza_estado','resultado','observaciones','inspector_id','inspector_nombre','inspector_identificacion','inspector_cargo','firma_inspector','firma_conductor','conductor_firmado','estado','firma_token','created_at','updated_at'];
 async function migrar(){
   const btn=document.getElementById('btnMig'); btn.disabled=true;
   try{
-    log('Leyendo inspecciones del origen…');
-    // Traer todo paginando
-    let todos=[],desde=0,lote=20;
+    log('Leyendo IDs del origen (ligero, sin fotos)…');
+    // 1) Traer solo IDs (rápido, no incluye fotos)
+    let ids=[],desde=0,lote=200;
     while(true){
-      const {data,error}=await orig.from('verificacion_vehiculos').select('*').range(desde,desde+lote-1).order('created_at');
+      const {data,error}=await orig.from('verificacion_vehiculos').select('id').range(desde,desde+lote-1).order('created_at');
       if(error)throw error;
-      todos=todos.concat(data||[]);
+      (data||[]).forEach(x=>ids.push(x.id));
       if(!data||data.length<lote)break;
       desde+=lote;
-      log('  leídos '+todos.length+'…');
     }
-    log('Total a migrar: '+todos.length);
-    document.getElementById('stat').textContent='Migrando '+todos.length+' inspecciones…';
+    log('Total a migrar: '+ids.length);
+    document.getElementById('stat').textContent='Migrando '+ids.length+' inspecciones (una por una)…';
     let ok=0, err=0;
-    for(let i=0;i<todos.length;i++){
-      const r=todos[i];
-      const row={}; COLS.forEach(c=>{ if(r[c]!==undefined) row[c]=r[c]; });
+    // 2) Traer y copiar CADA inspección individualmente (evita timeout por fotos pesadas)
+    for(let i=0;i<ids.length;i++){
       try{
-        const {error}=await dest.from('gc_vehiculos').upsert(row,{onConflict:'id'});
-        if(error)throw error;
+        const {data:one,error:eGet}=await orig.from('verificacion_vehiculos').select('*').eq('id',ids[i]).limit(1);
+        if(eGet)throw eGet;
+        const r=(one&&one[0]); if(!r){ err++; continue; }
+        const row={}; COLS.forEach(c=>{ if(r[c]!==undefined) row[c]=r[c]; });
+        for(const fc of ['foto_frontal','foto_lateral_der','foto_trasera','foto_lateral_izq']){ if(row[fc]) row[fc]=await comprimirFotoB64(row[fc]); }
+        const {error:ePut}=await dest.from('gc_vehiculos').upsert(row,{onConflict:'id'});
+        if(ePut)throw ePut;
         ok++;
-      }catch(e){ err++; log('  ✗ '+(r.placa||r.id)+': '+e.message); }
-      prog(Math.round((i+1)/todos.length*100));
-      document.getElementById('stat').textContent='Progreso: '+(i+1)+'/'+todos.length+' (✅ '+ok+' · ✗ '+err+')';
+      }catch(e){ err++; log('  ✗ registro '+(i+1)+': '+e.message); }
+      prog(Math.round((i+1)/ids.length*100));
+      document.getElementById('stat').textContent='Progreso: '+(i+1)+'/'+ids.length+' (✅ '+ok+' · ✗ '+err+')';
     }
     log('\n✅ MIGRACIÓN COMPLETA: '+ok+' copiadas, '+err+' con error.');
     document.getElementById('stat').textContent='✅ Listo: '+ok+' migradas, '+err+' errores.';
