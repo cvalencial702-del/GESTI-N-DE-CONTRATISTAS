@@ -75,7 +75,6 @@
     <a href="#" onclick="event.preventDefault();nuevaInspeccion()" id="nav-nueva" class="active">Nueva inspección</a>
     <a href="#" onclick="event.preventDefault();showView('listado')" id="nav-listado">Historial</a>
     <a href="#" onclick="event.preventDefault();showView('vencidos')" id="nav-vencidos">📅 Documentos vencidos</a>
-    <a href="inspeccion-vehiculos-publico.html" target="_blank">🔗 Link público</a>
     <a href="index.html">← Volver al sistema</a>
   </nav>
 </div>
@@ -205,11 +204,12 @@
     <div id="migBox"></div>
     <div class="card" style="margin-bottom:12px;display:flex;gap:10px;align-items:end;">
       <div style="flex:1;"><label>Segmentar por placa</label><input id="filtroPlaca" placeholder="Escriba una placa" style="text-transform:uppercase;" oninput="renderListado()"></div>
-      <div style="flex:1;"><label>Tipo de vehículo</label><select id="filtroTipo" onchange="renderListado()"><option value="">Todos</option><option>Moto</option><option>Carry Ref</option><option>Camión</option></select></div>
+      <div style="flex:1;"><label>Gestor / Contratista</label><select id="filtroGestor" onchange="renderListado()"><option value="">Todos</option></select></div>
+      <div style="flex:1;"><label>Tipo de vehículo</label><select id="filtroTipo" onchange="renderListado()"><option value="">Todos</option><option>Moto</option><option>Carry Ref</option><option>Camión</option><option>Camioneta</option></select></div>
       <div style="flex:1;"><label>Resultado</label><select id="filtroResultado" onchange="renderListado()"><option value="">Todos</option><option>Aprobado</option><option>Requiere seguimiento</option><option>No aprobado</option></select></div>
     </div>
     <div class="card" style="padding:6px 16px 14px;">
-      <table><thead><tr><th>Fecha</th><th>Placa</th><th>Tipo</th><th>Conductor</th><th>Resultado</th><th></th></tr></thead><tbody id="listadoBody"></tbody></table>
+      <table><thead><tr><th>Fecha</th><th>Placa</th><th>Gestor</th><th>Tipo</th><th>Conductor</th><th>Resultado</th><th></th></tr></thead><tbody id="listadoBody"></tbody></table>
     </div>
   </div>
 
@@ -730,20 +730,28 @@ function calcularKPIs(){
   document.getElementById('kpiAprob').textContent=aprob;
 }
 function renderListado(){
+  // Poblar el desplegable de gestores (una vez) con los gestores existentes
+  const selG=document.getElementById('filtroGestor');
+  if(selG && selG.options.length<=1){
+    const gestores=[...new Set(inspecciones.map(r=>(r.gestor||'').trim()).filter(Boolean))].sort();
+    selG.innerHTML='<option value="">Todos</option>'+gestores.map(g=>'<option>'+esc(g)+'</option>').join('');
+  }
   const fp=(document.getElementById('filtroPlaca').value||'').toUpperCase().trim();
+  const fg=(document.getElementById('filtroGestor')?document.getElementById('filtroGestor').value:'')||'';
   const ft=document.getElementById('filtroTipo').value;
   const fr=document.getElementById('filtroResultado').value;
   const rows=inspecciones.filter(r=>
-    (!fp||(r.placa||'').includes(fp)) && (!ft||r.tipo_vehiculo===ft) && (!fr||r.resultado===fr)
+    (!fp||(r.placa||'').includes(fp)) && (!fg||(r.gestor||'').trim()===fg) && (!ft||r.tipo_vehiculo===ft) && (!fr||r.resultado===fr)
   );
   const badge=res=>{const c=res==='Aprobado'?'pill-ok':res==='No aprobado'?'pill-bad':'pill-warn';return res?`<span class="pill ${c}">${res}</span>`:'—';};
   document.getElementById('listadoBody').innerHTML=rows.length?rows.map(r=>`<tr style="border-bottom:1px solid #F4F7FB;">
     <td>${r.fecha_inspeccion?r.fecha_inspeccion.slice(0,10):'—'}</td>
     <td style="font-weight:600;">${r.placa||'—'}</td>
+    <td>${r.gestor||'—'}</td>
     <td>${r.tipo_vehiculo||'—'}</td>
     <td>${r.conductor_nombre||'—'}</td>
     <td>${badge(r.resultado)}</td>
-    <td style="white-space:nowrap;"><button class="btn-sm" onclick="editarInspeccion('${r.id}')">✏️</button><button class="btn-sm" onclick="pdfInspeccion('${r.id}')">📄</button><button class="btn-sm" style="color:var(--danger);background:#FEF2F2;" onclick="eliminarInspeccion('${r.id}')">🗑</button></td></tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--slate);padding:20px;">Sin inspecciones</td></tr>';
+    <td style="white-space:nowrap;"><button class="btn-sm" onclick="editarInspeccion('${r.id}')">✏️</button><button class="btn-sm" onclick="pdfInspeccion('${r.id}')">📄</button><button class="btn-sm" style="color:var(--danger);background:#FEF2F2;" onclick="eliminarInspeccion('${r.id}')">🗑</button></td></tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--slate);padding:20px;">Sin inspecciones</td></tr>';
 }
 async function editarInspeccion(id){
   const {data}=await sb.from('gc_vehiculos').select('*').eq('id',id).limit(1);
