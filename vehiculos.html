@@ -102,6 +102,9 @@
       <div><label>Tipo de vehículo</label><select id="tipoVehiculo" onchange="renderElementos();document.getElementById('tipoVehiculoOtro').style.display=this.value==='Otros'?'block':'none';"><option value="">—</option><option>Moto</option><option>Carry Ref</option><option>Camión</option><option>Camioneta</option><option>Otros</option></select><input id="tipoVehiculoOtro" placeholder="¿Cuál?" style="display:none;margin-top:6px;"></div>
       <div><label>Placa</label><div style="display:flex;gap:7px;"><input id="placa" placeholder="ABC 12D" style="text-transform:uppercase;"><button class="btn btn-navy" style="white-space:nowrap;" onclick="buscarPorPlaca()">Buscar</button></div></div>
       <div><label>Referencia / modelo</label><input id="referencia" placeholder="Ej. Yamaha XTZ 125"></div>
+      <div><label>Marca</label><input id="marca" placeholder="Ej. Yamaha"></div>
+      <div><label>Cilindraje</label><input id="cilindraje" placeholder="Ej. 125 cc"></div>
+      <div><label>Fecha de matrícula</label><input type="date" id="fecha_matricula"></div>
     </div>
 
     <!-- 2. Conductor y evidencia -->
@@ -478,6 +481,7 @@ function recoger(){
     gestor:gv('gestor'),
     tipo_servicio:gv('tipoServicio'), tipo_vehiculo:(gv('tipoVehiculo')==='Otros'?(gv('tipoVehiculoOtro')||'Otros'):gv('tipoVehiculo')),
     placa:(gv('placa')||'').toUpperCase()||null, referencia_modelo:gv('referencia'),
+    marca:gv('marca')||null, cilindraje:gv('cilindraje')||null, fecha_matricula:gv('fecha_matricula')||null,
     conductor_id:conductorEmp?conductorEmp.id:null,
     conductor_nombre:document.getElementById('recibeNombre').value||document.getElementById('condNombre').textContent.replace(/^—$/,'')||null,
     conductor_identificacion:document.getElementById('recibeDoc').value||null,
@@ -544,6 +548,7 @@ function cargarEnFormulario(r){
   const sv=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v||'';};
   sv('fecha', r.fecha_inspeccion?r.fecha_inspeccion.slice(0,16):'');
   sv('gestor',r.gestor); sv('tipoServicio',r.tipo_servicio); sv('placa',r.placa); sv('referencia',r.referencia_modelo);
+  sv('marca',r.marca); sv('cilindraje',r.cilindraje); sv('fecha_matricula',r.fecha_matricula);
   // Proyecto: seleccionar si existe en el desplegable
   const selProy=document.getElementById('proyecto'); if(selProy&&r.proyecto){ if(![...selProy.options].some(o=>o.value===r.proyecto)){ selProy.insertAdjacentHTML('beforeend','<option value="'+esc(r.proyecto)+'">'+esc(r.proyecto)+'</option>'); } selProy.value=r.proyecto; }
   // Tipo de vehículo: si no es una opción fija, es "Otros"
@@ -780,7 +785,8 @@ async function pdfInspeccion(id){
     +'<div style="background:#0A2540;color:#fff;padding:14px;border-radius:8px;margin-bottom:14px;"><h1 style="margin:0;font-size:15px;">VERIFICACIÓN DE VEHÍCULOS Y MOTOS</h1><p style="margin:3px 0 0;font-size:11px;color:#B0C9E4;">SIG HSEQ — Grupo LPS</p></div>'
     +'<table style="width:100%;margin-bottom:10px;font-size:11px;"><tr><td><strong>Fecha:</strong> '+((r.fecha_inspeccion||'').slice(0,16).replace('T',' '))+'</td><td><strong>Placa:</strong> '+(r.placa||'')+'</td><td><strong>Tipo:</strong> '+(r.tipo_vehiculo||'')+'</td></tr>'
     +'<tr><td><strong>Conductor:</strong> '+(r.conductor_nombre||'—')+'</td><td><strong>C.C.:</strong> '+(r.conductor_identificacion||'—')+'</td><td><strong>Servicio:</strong> '+(r.tipo_servicio||'—')+'</td></tr>'
-    +'<tr><td><strong>Gestor:</strong> '+(r.gestor||'—')+'</td><td><strong>Referencia:</strong> '+(r.referencia_modelo||'—')+'</td><td></td></tr></table>'
+    +'<tr><td><strong>Gestor:</strong> '+(r.gestor||'—')+'</td><td><strong>Referencia:</strong> '+(r.referencia_modelo||'—')+'</td><td><strong>Marca:</strong> '+(r.marca||'—')+'</td></tr>'
+    +'<tr><td><strong>Cilindraje:</strong> '+(r.cilindraje||'—')+'</td><td><strong>Fecha matrícula:</strong> '+(r.fecha_matricula||'—')+'</td><td></td></tr></table>'
     +'<h3 style="font-size:12px;background:#EAF5FF;padding:5px 8px;">Documentos</h3>'
     +'<table style="width:100%;border-collapse:collapse;font-size:11px;"><tr style="background:#EAF5FF;"><th style="border:1px solid #999;padding:5px;">Documento</th><th style="border:1px solid #999;padding:5px;">N°</th><th style="border:1px solid #999;padding:5px;">Vence</th></tr>'
     +docRow('Licencia',r.licencia_numero,r.licencia_venc)+docRow('Tarjeta propiedad',r.tarjeta_propiedad,'')+docRow('SOAT',r.soat_numero,r.soat_venc)+docRow('RTM',r.rtm_aplica!==false?r.rtm_numero:'No aplica',r.rtm_venc)+docRow('Pólizas',r.polizas,r.polizas_venc)+'</table>'
